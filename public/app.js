@@ -214,9 +214,19 @@ async function loadDashboard() {
 
 function renderCategoryChart(groupings) {
     const ctx = document.getElementById('categoryChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error('[Chart] categoryChart canvas not found');
+        return;
+    }
     
-    new Chart(ctx, {
+    console.log('[Chart] Rendering category chart with', groupings.length, 'groupings');
+    
+    // Destroy existing chart if it exists
+    if (window.categoryChartInstance) {
+        window.categoryChartInstance.destroy();
+    }
+    
+    window.categoryChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: groupings.map(g => g.grouping),
@@ -239,18 +249,33 @@ function renderCategoryChart(groupings) {
             }
         }
     });
+    
+    console.log('[Chart] Category chart rendered successfully');
 }
 
 function renderTrendChart(groupings) {
     const ctx = document.getElementById('trendChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error('[Chart] trendChart canvas not found');
+        return;
+    }
+    
+    console.log('[Chart] Rendering trend chart with', groupings.length, 'groupings');
+    
+    // Destroy existing chart if it exists
+    if (window.trendChartInstance) {
+        window.trendChartInstance.destroy();
+    }
     
     // Create stock level data
     const labels = groupings.map(g => g.grouping);
     const stockData = groupings.map(g => g.totalStock);
     const lowStockData = groupings.map(g => g.lowStock);
     
-    new Chart(ctx, {
+    console.log('[Chart] Stock data:', stockData);
+    console.log('[Chart] Low stock data:', lowStockData);
+    
+    window.trendChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -286,11 +311,18 @@ function renderTrendChart(groupings) {
             }
         }
     });
+    
+    console.log('[Chart] Trend chart rendered successfully');
 }
 
 function renderMaterialsSummary(groupings) {
     const container = document.getElementById('materialsSummaryTable');
-    if (!container) return;
+    if (!container) {
+        console.error('[Table] materialsSummaryTable not found');
+        return;
+    }
+    
+    console.log('[Table] Rendering materials summary with', groupings.length, 'groupings');
     
     const html = `
         <table style="width: 100%; border-collapse: collapse;">
@@ -339,6 +371,7 @@ function renderMaterialsSummary(groupings) {
     `;
     
     container.innerHTML = html;
+    console.log('[Table] Materials summary rendered successfully');
 }
 
 async function loadRecentTransactions() {
