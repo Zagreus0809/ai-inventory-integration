@@ -23,6 +23,11 @@
                 <input type="text" id="globalSearch" placeholder="Search materials, transactions...">
             </div>
         </div>
+        <div class="header-right">
+            <button onclick="startDemo()" class="btn btn-primary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
+                <i class="fas fa-play-circle"></i> AI Demo
+            </button>
+        </div>
     </header>
 
     <!-- Sidebar -->
@@ -335,7 +340,21 @@
         </div>
     </div>
 
+    <!-- Demo Modal -->
+    <div id="demoModal" class="ai-modal" style="display: none;">
+        <div class="ai-modal-content" style="max-width: 900px;">
+            <div class="ai-modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <h2><i class="fas fa-play-circle"></i> AI Inventory System Demo</h2>
+                <button onclick="closeDemoModal()" class="ai-modal-close" style="color: white;">&times;</button>
+            </div>
+            <div class="ai-modal-body" id="demoModalBody" style="padding: 30px;">
+                <!-- Demo content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="app.js"></script>
+    <script src="demo.js"></script>
 </body>
 </html>
