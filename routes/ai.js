@@ -582,4 +582,143 @@ ${groupings.slice(0, 5).map(g =>
 *System Status: 🟢 All AI features operational*`;
 }
 
+// AI Low Stock Analysis
+router.post('/low-stock-analysis', async (req, res) => {
+  try {
+    const { materials } = req.body;
+    
+    if (!materials || materials.length === 0) {
+      return res.status(400).json({ error: 'No low stock materials provided' });
+    }
+    
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
+    const prompt = `As an expert inventory management AI, analyze these LOW STOCK materials that need immediate attention:
+
+CRITICAL LOW STOCK MATERIALS:
+${JSON.stringify(materials, null, 2)}
+
+Provide URGENT recommendations including:
+
+1. 🚨 IMMEDIATE ACTIONS REQUIRED:
+   - Which materials need emergency purchase orders TODAY
+   - Estimated stockout dates if no action taken
+   - Impact on production/operations
+
+2. 📊 PRIORITY RANKING:
+   - Rank materials by criticality (1 = most critical)
+   - Consider: current stock, reorder point, usage rate, lead time
+
+3. 💰 COST IMPACT:
+   - Estimated cost of stockouts
+   - Recommended order quantities
+   - Total investment needed
+
+4. ⏱️ TIMELINE:
+   - Immediate (today): List materials
+   - This week: List materials
+   - Next week: List materials
+
+5. 🎯 PREVENTION STRATEGY:
+   - Why did these items reach low stock?
+   - How to prevent future stockouts?
+   - Recommended safety stock adjustments
+
+Format with clear sections, tables, and actionable recommendations.`;
+
+    const result = await model.generateContent(prompt);
+    const analysis = result.response.text();
+
+    res.json({
+      analysis,
+      materialsAnalyzed: materials.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('AI Low Stock Analysis Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to analyze low stock items',
+      details: error.message 
+    });
+  }
+});
+
+// AI Individual Material Analysis
+router.post('/material-analysis', async (req, res) => {
+  try {
+    const { material } = req.body;
+    
+    if (!material) {
+      return res.status(400).json({ error: 'No material provided' });
+    }
+    
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
+    const status = material.stock <= material.reorderPoint ? 'CRITICAL - LOW STOCK' : 
+                   material.stock <= material.reorderPoint * 1.5 ? 'WARNING - APPROACHING LOW STOCK' : 'HEALTHY';
+    
+    const prompt = `As an expert inventory management AI, provide a comprehensive analysis of this specific material:
+
+MATERIAL DETAILS:
+- Part Number: ${material.partNumber}
+- Description: ${material.description}
+- Project: ${material.project}
+- Category: ${material.grouping}
+- Current Stock: ${material.stock} ${material.unit}
+- Reorder Point: ${material.reorderPoint} ${material.unit}
+- Unit Price: ₱${material.price}
+- Storage Location: ${material.storageLocation}
+- Status: ${status}
+
+Provide detailed analysis including:
+
+1. 📊 CURRENT STATUS ASSESSMENT:
+   - Stock health evaluation
+   - Days of stock remaining (estimate)
+   - Risk level (Low/Medium/High)
+
+2. 💡 RECOMMENDATIONS:
+   - Should we reorder now? (Yes/No with reasoning)
+   - Recommended order quantity
+   - Optimal reorder timing
+
+3. 📈 USAGE ANALYSIS:
+   - Estimated consumption rate
+   - Seasonal patterns (if applicable)
+   - Project-specific considerations
+
+4. 💰 FINANCIAL IMPACT:
+   - Current inventory value
+   - Recommended investment for reorder
+   - Cost of potential stockout
+
+5. ⚠️ RISKS & MITIGATION:
+   - What could go wrong?
+   - Contingency plans
+   - Alternative materials (if any)
+
+6. 🎯 OPTIMIZATION SUGGESTIONS:
+   - Is the reorder point optimal?
+   - Storage location efficiency
+   - Supplier considerations
+
+Be specific, actionable, and consider the material's role in the ${material.project} project.`;
+
+    const result = await model.generateContent(prompt);
+    const analysis = result.response.text();
+
+    res.json({
+      analysis,
+      material: material.partNumber,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('AI Material Analysis Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to analyze material',
+      details: error.message 
+    });
+  }
+});
+
 module.exports = router;

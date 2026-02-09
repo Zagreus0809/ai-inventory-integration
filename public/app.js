@@ -64,14 +64,13 @@ async function loadDashboard() {
 // AI DASHBOARD ANALYSIS
 // ============================================
 async function loadAIDashboardAnalysis() {
-    const container = document.getElementById('aiDashboardAnalysis');
+    const container = document.getElementById('aiDashboardSummary');
     
     if (container) {
         container.innerHTML = `
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
-                <h5>AI is analyzing your entire inventory...</h5>
-                <p class="text-muted mb-0">Evaluating ${materials.length || 50} materials, demand patterns, and optimization opportunities</p>
+            <div class="text-center py-3">
+                <div class="spinner-border text-primary mb-2" style="width: 2rem; height: 2rem;"></div>
+                <p class="text-muted mb-0">AI is analyzing your inventory...</p>
             </div>
         `;
     }
@@ -82,22 +81,17 @@ async function loadAIDashboardAnalysis() {
         const result = await response.json();
         console.log('[AI] Dashboard analysis received:', result.success ? 'Success' : 'Failed');
 
+        // Store the full analysis globally
+        window.aiAnalysisData = result;
+
+        // Show summary in card
         if (container) {
+            const summary = result.analysis.substring(0, 200) + '...';
             container.innerHTML = `
-                ${result.isMock ? `
-                    <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px 20px; margin: 15px; border-radius: 4px;">
-                        <i class="fas fa-info-circle" style="color: #2196f3; margin-right: 8px;"></i>
-                        <strong>Demo Mode:</strong> ${result.reason || 'Configure GEMINI_API_KEY for real AI insights'}
-                    </div>
-                ` : ''}
-                <div style="padding: 20px; background: #fafafa; font-size: 0.95em;">
-                    ${formatAIAnalysis(result.analysis)}
-                </div>
-                <div style="border-top: 1px solid #e0e0e0; padding: 12px 20px; background: #f5f5f5; text-align: center; color: #666; font-size: 0.9em;">
-                    <i class="fas fa-clock" style="margin-right: 5px;"></i>
-                    Last analyzed: ${new Date(result.timestamp).toLocaleString()}
-                    <button onclick="refreshAIDashboardAnalysis()" style="background: none; border: none; color: #667eea; cursor: pointer; margin-left: 15px; font-weight: 600;">
-                        <i class="fas fa-sync-alt" style="margin-right: 5px;"></i>Refresh
+                <div style="text-align: left;">
+                    <p style="margin: 0 0 15px 0; color: #666; line-height: 1.6;">${summary}</p>
+                    <button onclick="openAIModal()" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-eye me-2"></i>View Full AI Analysis
                     </button>
                 </div>
             `;
@@ -107,11 +101,10 @@ async function loadAIDashboardAnalysis() {
         console.error('AI Dashboard Analysis Error:', error);
         if (container) {
             container.innerHTML = `
-                <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 20px; margin: 15px; border-radius: 4px;">
-                    <h6 style="color: #f44336; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>Analysis Failed</h6>
-                    <p style="margin: 0 0 15px 0; color: #666;">${error.message}</p>
-                    <button onclick="refreshAIDashboardAnalysis()" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
-                        <i class="fas fa-redo" style="margin-right: 5px;"></i>Retry
+                <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 15px; border-radius: 4px;">
+                    <p style="color: #f44336; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Analysis Failed</p>
+                    <button onclick="loadAIDashboardAnalysis()" class="btn btn-danger btn-sm">
+                        <i class="fas fa-redo"></i> Retry
                     </button>
                 </div>
             `;
@@ -119,9 +112,151 @@ async function loadAIDashboardAnalysis() {
     }
 }
 
-function refreshAIDashboardAnalysis() {
-    console.log('Refreshing AI dashboard analysis...');
-    loadAIDashboardAnalysis();
+function openAIModal() {
+    const modal = document.getElementById('aiModal');
+    const modalBody = document.getElementById('aiModalBody');
+    
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    if (window.aiAnalysisData) {
+        modalBody.innerHTML = `
+            <div style="padding: 20px; background: #fafafa; font-size: 0.95em;">
+                ${formatAIAnalysis(window.aiAnalysisData.analysis)}
+            </div>
+            <div style="border-top: 1px solid #e0e0e0; padding: 15px; background: #f5f5f5; text-align: center; color: #666;">
+                <i class="fas fa-clock" style="margin-right: 5px;"></i>
+                Last analyzed: ${new Date(window.aiAnalysisData.timestamp).toLocaleString()}
+                <button onclick="refreshAIAnalysis()" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-left: 15px;">
+                    <i class="fas fa-sync-alt" style="margin-right: 5px;"></i>Refresh Analysis
+                </button>
+            </div>
+        `;
+    } else {
+        modalBody.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+                <h5>Loading AI insights...</h5>
+            </div>
+        `;
+        // Load if not already loaded
+        loadAIDashboardAnalysis();
+    }
+}
+
+function closeAIModal() {
+    const modal = document.getElementById('aiModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function refreshAIAnalysis() {
+    const modalBody = document.getElementById('aiModalBody');
+    modalBody.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h5>Refreshing AI analysis...</h5>
+        </div>
+    `;
+    loadAIDashboardAnalysis().then(() => {
+        setTimeout(() => openAIModal(), 1000);
+    });
+}
+
+async function analyzeLowStock() {
+    const lowStockMaterials = materials.filter(m => m.stock <= m.reorderPoint);
+    
+    if (lowStockMaterials.length === 0) {
+        alert('✅ Great news! No materials are currently low on stock.');
+        return;
+    }
+    
+    const modal = document.getElementById('aiModal');
+    const modalBody = document.getElementById('aiModalBody');
+    
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    modalBody.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-danger mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h5>AI is analyzing ${lowStockMaterials.length} low stock items...</h5>
+            <p class="text-muted">This may take 10-30 seconds</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/ai/low-stock-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ materials: lowStockMaterials })
+        });
+        
+        const data = await response.json();
+        
+        modalBody.innerHTML = `
+            <div style="padding: 20px; background: #fafafa; font-size: 0.95em;">
+                ${formatAIAnalysis(data.analysis)}
+            </div>
+            <div style="border-top: 1px solid #e0e0e0; padding: 15px; background: #f5f5f5; text-align: center; color: #666;">
+                <i class="fas fa-exclamation-triangle text-danger" style="margin-right: 5px;"></i>
+                Analyzed ${lowStockMaterials.length} low stock items
+            </div>
+        `;
+    } catch (error) {
+        modalBody.innerHTML = `
+            <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 20px; margin: 15px; border-radius: 4px;">
+                <h6 style="color: #f44336; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Analysis Failed</h6>
+                <p style="margin: 0;">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+async function analyzeMaterial(materialId) {
+    const material = materials.find(m => m.id === materialId);
+    if (!material) return;
+    
+    const modal = document.getElementById('aiModal');
+    const modalBody = document.getElementById('aiModalBody');
+    
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    modalBody.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h5>AI is analyzing ${material.partNumber}...</h5>
+            <p class="text-muted">${material.description}</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/ai/material-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ material })
+        });
+        
+        const data = await response.json();
+        
+        modalBody.innerHTML = `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; margin: -30px -30px 20px -30px; border-radius: 0;">
+                <h3 style="margin: 0 0 10px 0; color: white;">${material.partNumber}</h3>
+                <p style="margin: 0; opacity: 0.9;">${material.description}</p>
+            </div>
+            <div style="padding: 20px; background: #fafafa; font-size: 0.95em;">
+                ${formatAIAnalysis(data.analysis)}
+            </div>
+        `;
+    } catch (error) {
+        modalBody.innerHTML = `
+            <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 20px; margin: 15px; border-radius: 4px;">
+                <h6 style="color: #f44336; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Analysis Failed</h6>
+                <p style="margin: 0;">${error.message}</p>
+            </div>
+        `;
+    }
 }
 
 function formatAIAnalysis(text) {
@@ -463,6 +598,7 @@ function renderMaterialsTable(data) {
                     <th>Reorder Point</th>
                     <th>Status</th>
                     <th>Storage Location</th>
+                    <th>AI Analysis</th>
                 </tr>
             </thead>
             <tbody>
@@ -480,6 +616,11 @@ function renderMaterialsTable(data) {
                             <td>${m.reorderPoint}</td>
                             <td><span class="status-badge status-${status}">${status.toUpperCase()}</span></td>
                             <td style="font-size: 11px">${m.storageLocation}</td>
+                            <td>
+                                <button onclick="analyzeMaterial('${m.id}')" class="btn btn-sm btn-primary" style="font-size: 0.75em; padding: 4px 8px;">
+                                    <i class="fas fa-robot"></i> Analyze
+                                </button>
+                            </td>
                         </tr>
                     `;
                 }).join('')}
