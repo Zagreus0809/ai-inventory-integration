@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAP AI Inventory Management System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <i class="fas fa-cube"></i>
+                <span>SAP AI Inventory</span>
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="globalSearch" placeholder="Search materials, transactions...">
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="user-menu">
+                <img src="https://ui-avatars.com/api/?name=Admin+User&background=0D8ABC&color=fff" alt="User">
+                <span>Admin User</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <nav class="nav-menu">
+            <a href="#" class="nav-item active" onclick="showSection('dashboard')">
+                <i class="fas fa-th-large"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showSection('materials')">
+                <i class="fas fa-boxes"></i>
+                <span>Materials Master</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showSection('stock-entry')">
+                <i class="fas fa-exchange-alt"></i>
+                <span>Stock Entry</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showSection('material-request')">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Material Request</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showSection('stock-ledger')">
+                <i class="fas fa-book"></i>
+                <span>Stock Ledger</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="content-section active">
+            <div class="section-header">
+                <h1>Dashboard</h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="refreshDashboard()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon blue">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h3 id="totalMaterials">0</h3>
+                        <p>Total Materials</p>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon green">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h3>₱0</h3>
+                        <p>Total Value</p>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon red">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h3 id="lowStockItems">0</h3>
+                        <p>Low Stock Items</p>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon purple">
+                        <i class="fas fa-sync-alt"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h3 id="turnoverRate">0%</h3>
+                        <p>Turnover Rate</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Dashboard Analysis Section -->
+            <div class="card mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                    <div>
+                        <h5 class="mb-0" style="color: white;">
+                            <i class="fas fa-robot me-2"></i>
+                            AI-Powered Inventory Insights
+                        </h5>
+                        <small style="opacity: 0.9;">Real-time intelligent analysis of your inventory</small>
+                    </div>
+                    <button class="btn btn-sm btn-light" onclick="refreshAIDashboardAnalysis()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="aiDashboardAnalysis" style="max-height: none; overflow-y: visible;">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+                            <h5>AI is analyzing your inventory...</h5>
+                            <p class="text-muted">This may take 10-30 seconds</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon green">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h3>₱0</h3>
+                        <p>Total Inventory Value</p>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon red">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h3 id="lowStockItems">0</h3>
+                        <p>Low Stock Alerts</p>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon purple">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h3 id="turnoverRate">0%</h3>
+                        <p>Turnover Rate</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="charts-row">
+                <div class="chart-card">
+                    <h3>Inventory by Grouping</h3>
+                    <canvas id="categoryChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Stock Level Trends</h3>
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Materials Summary Table -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3><i class="fas fa-boxes me-2"></i>Materials Overview by Category</h3>
+                </div>
+                <div class="card-body">
+                    <div id="materialsSummaryTable" class="table-responsive">
+                        <p class="loading">Loading materials summary...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card">
+                <h3>Recent Transactions</h3>
+                <div id="recentTransactions" class="table-container">
+                    <p class="loading">Loading...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Materials Section -->
+        <section id="materials" class="content-section">
+            <div class="section-header">
+                <h1>Materials Master Data</h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="exportMaterials()">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                    <button class="btn btn-primary" onclick="showAddMaterial()">
+                        <i class="fas fa-plus"></i> Add Material
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-bar">
+                <select id="categoryFilter" onchange="filterMaterials()">
+                    <option value="">All Groupings</option>
+                </select>
+                <input type="text" id="materialSearch" placeholder="Search materials..." onkeyup="filterMaterials()">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="lowStockFilter" onchange="filterMaterials()">
+                    Show Low Stock Only
+                </label>
+            </div>
+
+            <!-- Materials Table -->
+            <div class="card">
+                <div id="materialsTable" class="table-container">
+                    <p class="loading">Loading materials...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Other sections will be loaded dynamically -->
+        <section id="transactions" class="content-section">
+            <h1>Transactions</h1>
+            <p>Transaction management interface...</p>
+        </section>
+
+        <section id="analytics" class="content-section">
+            <h1>Analytics & Reports</h1>
+            <p>Advanced analytics dashboard...</p>
+        </section>
+
+
+
+        <!-- Stock Entry Section (ERPNext Style) -->
+        <section id="stock-entry" class="content-section">
+            <div class="section-header">
+                <h1><i class="fas fa-exchange-alt"></i> Stock Entry</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="showNewStockEntry()">
+                        <i class="fas fa-plus"></i> New Stock Entry
+                    </button>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <select id="stockEntryTypeFilter" onchange="filterStockEntries()">
+                    <option value="">All Entry Types</option>
+                    <option value="Material Receipt">Material Receipt</option>
+                    <option value="Material Issue">Material Issue</option>
+                    <option value="Material Transfer">Material Transfer</option>
+                    <option value="Material Consumption">Material Consumption</option>
+                </select>
+                <input type="date" id="stockEntryDateFrom" onchange="filterStockEntries()" placeholder="From Date">
+                <input type="date" id="stockEntryDateTo" onchange="filterStockEntries()" placeholder="To Date">
+            </div>
+
+            <div id="stockEntriesTable" class="table-container">
+                <p class="loading">Loading stock entries...</p>
+            </div>
+        </section>
+
+        <!-- Material Request Section (ERPNext Style) -->
+        <section id="material-request" class="content-section">
+            <div class="section-header">
+                <h1><i class="fas fa-clipboard-list"></i> Material Request</h1>
+                <div class="header-actions">
+                    <button class="btn btn-success" onclick="autoGenerateMaterialRequest()">
+                        <i class="fas fa-magic"></i> Auto-Generate for Low Stock
+                    </button>
+                    <button class="btn btn-primary" onclick="showNewMaterialRequest()">
+                        <i class="fas fa-plus"></i> New Material Request
+                    </button>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <select id="materialRequestStatusFilter" onchange="filterMaterialRequests()">
+                    <option value="">All Status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Ordered">Ordered</option>
+                    <option value="Issued">Issued</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+                <select id="materialRequestTypeFilter" onchange="filterMaterialRequests()">
+                    <option value="">All Types</option>
+                    <option value="Purchase">Purchase</option>
+                    <option value="Material Transfer">Material Transfer</option>
+                    <option value="Material Issue">Material Issue</option>
+                    <option value="Manufacture">Manufacture</option>
+                </select>
+            </div>
+
+            <div id="materialRequestsTable" class="table-container">
+                <p class="loading">Loading material requests...</p>
+            </div>
+        </section>
+
+        <!-- Stock Ledger Section (ERPNext Style) -->
+        <section id="stock-ledger" class="content-section">
+            <div class="section-header">
+                <h1><i class="fas fa-book"></i> Stock Ledger</h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="exportStockLedger()">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadStockLedger()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <input type="text" id="ledgerMaterialSearch" placeholder="Search by Part Number..." onkeyup="filterStockLedger()">
+                <select id="ledgerWarehouseFilter" onchange="filterStockLedger()">
+                    <option value="">All Warehouses</option>
+                </select>
+                <select id="ledgerEntryTypeFilter" onchange="filterStockLedger()">
+                    <option value="">All Entry Types</option>
+                    <option value="IN">Stock IN</option>
+                    <option value="OUT">Stock OUT</option>
+                </select>
+            </div>
+
+            <div class="stats-grid" style="margin-bottom: 20px;">
+                <div class="stat-card">
+                    <h3 id="totalStockIn">0</h3>
+                    <p>Total Stock IN</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="totalStockOut">0</h3>
+                    <p>Total Stock OUT</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="totalTransactions">0</h3>
+                    <p>Total Transactions</p>
+                </div>
+            </div>
+
+            <div id="stockLedgerTable" class="table-container">
+                <p class="loading">Loading stock ledger...</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

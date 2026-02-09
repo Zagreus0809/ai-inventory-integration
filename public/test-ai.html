@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .error {
+            color: red;
+            background: #fee;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            color: green;
+            background: #efe;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🤖 AI System Diagnostic Test</h1>
+    <p>This page tests the AI endpoints directly without the main app navigation.</p>
+
+    <div class="test-section">
+        <h2>1. Load Materials</h2>
+        <button onclick="testLoadMaterials()">Load Materials</button>
+        <div id="materialsResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Test Safety Stock Analysis</h2>
+        <button onclick="testSafetyStock()">Run Safety Stock Analysis</button>
+        <div id="safetyStockResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test Complete Analytics</h2>
+        <button onclick="testCompleteAnalytics()">Run Complete Analytics</button>
+        <div id="analyticsResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Test SAP Improvements</h2>
+        <button onclick="testSAPImprovements()">Run SAP Improvements</button>
+        <div id="sapResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Test Dashboard Analysis</h2>
+        <button onclick="testDashboardAnalysis()">Run Dashboard Analysis</button>
+        <div id="dashboardResult"></div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+        let materials = [];
+
+        async function testLoadMaterials() {
+            const resultDiv = document.getElementById('materialsResult');
+            resultDiv.innerHTML = '<p class="loading">Loading materials...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/materials`);
+                materials = await response.json();
+                resultDiv.innerHTML = `<div class="success">✅ Loaded ${materials.length} materials successfully!</div>`;
+                console.log('Materials:', materials);
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Error:', error);
+            }
+        }
+
+        async function testSafetyStock() {
+            const resultDiv = document.getElementById('safetyStockResult');
+            
+            if (materials.length === 0) {
+                resultDiv.innerHTML = '<div class="error">❌ Please load materials first!</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p class="loading">🤖 Running Safety Stock Analysis... (this may take 10-30 seconds)</p>';
+            
+            try {
+                console.log('Sending request to:', `${API_URL}/api/ai/safety-stock`);
+                console.log('Materials count:', materials.length);
+                
+                const response = await fetch(`${API_URL}/api/ai/safety-stock`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ materials })
+                });
+                
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Analysis complete! Analyzed ${data.materialsAnalyzed} materials</div>
+                        <div class="result">${data.analysis.substring(0, 500)}...</div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Error:', error);
+            }
+        }
+
+        async function testCompleteAnalytics() {
+            const resultDiv = document.getElementById('analyticsResult');
+            
+            if (materials.length === 0) {
+                resultDiv.innerHTML = '<div class="error">❌ Please load materials first!</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p class="loading">🤖 Running Complete Analytics... (this may take 10-30 seconds)</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/ai/complete-analytics`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ materials })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Analysis complete! Analyzed ${data.materialsAnalyzed} materials</div>
+                        <div class="result">${data.analytics.substring(0, 500)}...</div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Error:', error);
+            }
+        }
+
+        async function testSAPImprovements() {
+            const resultDiv = document.getElementById('sapResult');
+            
+            if (materials.length === 0) {
+                resultDiv.innerHTML = '<div class="error">❌ Please load materials first!</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p class="loading">🤖 Running SAP Improvements Analysis... (this may take 10-30 seconds)</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/ai/sap-improvements`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        materials,
+                        systemData: {
+                            totalMaterials: materials.length,
+                            projects: ['Nivio', 'Migne', 'Common Direct'],
+                            groupings: [...new Set(materials.map(m => m.grouping))]
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Analysis complete! Analyzed ${data.materialsAnalyzed} materials</div>
+                        <div class="result">${data.improvements.substring(0, 500)}...</div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Error:', error);
+            }
+        }
+
+        async function testDashboardAnalysis() {
+            const resultDiv = document.getElementById('dashboardResult');
+            resultDiv.innerHTML = '<p class="loading">🤖 Running Dashboard Analysis... (this may take 10-30 seconds)</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/ai/dashboard-analysis`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Analysis complete! ${data.isMock ? '(Demo Mode)' : '(Real AI)'}</div>
+                        <div class="result">${data.analysis.substring(0, 500)}...</div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Error:', error);
+            }
+        }
+
+        // Auto-load materials on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Test page loaded');
+            testLoadMaterials();
+        });
+    </script>
+</body>
+</html>
