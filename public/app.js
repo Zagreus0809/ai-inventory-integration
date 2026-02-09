@@ -55,6 +55,17 @@ async function loadDashboard() {
         // Load AI Dashboard Analysis automatically
         console.log('[Dashboard] Loading AI analysis...');
         loadAIDashboardAnalysis();
+        
+        // Automatically analyze low stock if there are any
+        if (dashboardData.lowStockItems > 0) {
+            console.log('[Dashboard] Low stock detected, analyzing automatically...');
+            autoAnalyzeLowStock();
+        } else {
+            const statusDiv = document.getElementById('lowStockAIStatus');
+            if (statusDiv) {
+                statusDiv.innerHTML = '<i class="fas fa-check-circle" style="color: #4caf50;"></i> All stock levels healthy';
+            }
+        }
     } catch (error) {
         console.error('Error loading dashboard:', error);
     }
@@ -163,6 +174,74 @@ function refreshAIAnalysis() {
     });
 }
 
+async function autoAnalyzeLowStock() {
+    const lowStockMaterials = materials.filter(m => m.stock <= m.reorderPoint);
+    
+    if (lowStockMaterials.length === 0) {
+        return;
+    }
+    
+    const statusDiv = document.getElementById('lowStockAIStatus');
+    if (statusDiv) {
+        statusDiv.innerHTML = '<i class="fas fa-robot"></i> AI analyzing low stock...';
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/api/ai/low-stock-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ materials: lowStockMaterials })
+        });
+        
+        const data = await response.json();
+        
+        // Store the analysis
+        window.lowStockAnalysisData = data;
+        
+        // Update status with clickable link
+        if (statusDiv) {
+            statusDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle" style="color: #f44336;"></i> 
+                <a href="#" onclick="showLowStockAnalysis(); return false;" style="color: #f44336; text-decoration: underline; font-weight: 600;">
+                    ${lowStockMaterials.length} items analyzed - View Details
+                </a>
+            `;
+        }
+    } catch (error) {
+        console.error('Auto Low Stock Analysis Error:', error);
+        if (statusDiv) {
+            statusDiv.innerHTML = '<i class="fas fa-exclamation-circle" style="color: #ff9800;"></i> Analysis failed';
+        }
+    }
+}
+
+function showLowStockAnalysis() {
+    if (!window.lowStockAnalysisData) {
+        alert('Low stock analysis not available. Please refresh the page.');
+        return;
+    }
+    
+    const modal = document.getElementById('aiModal');
+    const modalBody = document.getElementById('aiModalBody');
+    
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    modalBody.innerHTML = `
+        <div style="background: linear-gradient(135deg, #f44336 0%, #e91e63 100%); color: white; padding: 20px; margin: -30px -30px 20px -30px; border-radius: 0;">
+            <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-exclamation-triangle"></i> Low Stock Alert</h3>
+            <p style="margin: 0; opacity: 0.9;">AI Analysis of Materials Requiring Attention</p>
+        </div>
+        <div style="padding: 20px; background: #fafafa; font-size: 0.95em;">
+            ${formatAIAnalysis(window.lowStockAnalysisData.analysis)}
+        </div>
+        <div style="border-top: 1px solid #e0e0e0; padding: 15px; background: #f5f5f5; text-align: center; color: #666;">
+            <i class="fas fa-exclamation-triangle text-danger" style="margin-right: 5px;"></i>
+            Analyzed ${window.lowStockAnalysisData.materialsAnalyzed} low stock items
+        </div>
+    `;
+}
+
 async function analyzeLowStock() {
     const lowStockMaterials = materials.filter(m => m.stock <= m.reorderPoint);
     
@@ -195,6 +274,10 @@ async function analyzeLowStock() {
         const data = await response.json();
         
         modalBody.innerHTML = `
+            <div style="background: linear-gradient(135deg, #f44336 0%, #e91e63 100%); color: white; padding: 20px; margin: -30px -30px 20px -30px; border-radius: 0;">
+                <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-exclamation-triangle"></i> Low Stock Alert</h3>
+                <p style="margin: 0; opacity: 0.9;">AI Analysis of Materials Requiring Attention</p>
+            </div>
             <div style="padding: 20px; background: #fafafa; font-size: 0.95em;">
                 ${formatAIAnalysis(data.analysis)}
             </div>

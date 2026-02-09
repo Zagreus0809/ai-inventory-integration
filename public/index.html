@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SAP AI Inventory Management System</title>
+    <title>AI Inventory Integration (ERPNext)</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -14,19 +14,13 @@
         <div class="header-left">
             <div class="logo">
                 <i class="fas fa-cube"></i>
-                <span>SAP AI Inventory</span>
+                <span>AI Inventory Integration (ERPNext)</span>
             </div>
         </div>
         <div class="header-center">
             <div class="search-bar">
                 <i class="fas fa-search"></i>
                 <input type="text" id="globalSearch" placeholder="Search materials, transactions...">
-            </div>
-        </div>
-        <div class="header-right">
-            <div class="user-menu">
-                <img src="https://ui-avatars.com/api/?name=Admin+User&background=0D8ABC&color=fff" alt="User">
-                <span>Admin User</span>
             </div>
         </div>
     </header>
@@ -97,9 +91,9 @@
                     <div class="kpi-content">
                         <h3 id="lowStockItems">0</h3>
                         <p>Low Stock Items</p>
-                        <button onclick="analyzeLowStock()" class="btn btn-sm btn-danger mt-2" style="font-size: 0.75em;">
-                            <i class="fas fa-robot"></i> AI Analyze
-                        </button>
+                        <div id="lowStockAIStatus" class="mt-2" style="font-size: 0.75em; color: #666;">
+                            <i class="fas fa-robot"></i> AI analyzing...
+                        </div>
                     </div>
                 </div>
                 <div class="kpi-card">
@@ -123,9 +117,6 @@
                         </h5>
                         <small style="opacity: 0.9;">Click to view comprehensive AI analysis</small>
                     </div>
-                    <button class="btn btn-sm btn-light" onclick="openAIModal()" style="background: rgba(255,255,255,0.9); color: #667eea; border: none; font-weight: 600;">
-                        <i class="fas fa-eye me-1"></i>View AI Insights
-                    </button>
                 </div>
                 <div class="card-body p-3">
                     <div id="aiDashboardSummary" class="text-center py-3">
