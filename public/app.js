@@ -30,10 +30,23 @@ async function initializeApp() {
 
 // Navigation
 function showSection(sectionId) {
+    // Prevent default link behavior
+    if (window.event) {
+        window.event.preventDefault();
+    }
+    
+    console.log('[Navigation] Switching to section:', sectionId);
+    
     document.querySelectorAll('.content-section').forEach(section => {
         section.classList.remove('active');
     });
-    document.getElementById(sectionId).classList.add('active');
+    
+    const targetSection = document.getElementById(sectionId);
+    if (!targetSection) {
+        console.error('[Navigation] Section not found:', sectionId);
+        return;
+    }
+    targetSection.classList.add('active');
     
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
