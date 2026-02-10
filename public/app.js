@@ -111,12 +111,37 @@ async function loadAIDashboardAnalysis() {
         return;
     }
     
+    // Show animated loading with progress
     container.innerHTML = `
         <div class="text-center py-3">
             <div class="spinner-border text-primary mb-2" style="width: 2rem; height: 2rem;"></div>
-            <p class="text-muted mb-0">AI is analyzing your inventory...</p>
+            <p class="text-muted mb-1" id="aiLoadingText">AI is analyzing your inventory...</p>
+            <div style="width: 100%; background: #e0e0e0; border-radius: 10px; height: 6px; margin: 10px 0;">
+                <div id="aiLoadingProgress" style="width: 0%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); height: 100%; border-radius: 10px; transition: width 0.3s;"></div>
+            </div>
+            <p style="font-size: 0.85em; color: #999;" id="aiLoadingStep">Initializing AI...</p>
         </div>
     `;
+
+    // Simulate progress updates
+    const progressBar = document.getElementById('aiLoadingProgress');
+    const loadingText = document.getElementById('aiLoadingStep');
+    const steps = [
+        { progress: 10, text: 'Loading 50 materials...' },
+        { progress: 30, text: 'Analyzing stock levels...' },
+        { progress: 50, text: 'Detecting anomalies...' },
+        { progress: 70, text: 'Calculating recommendations...' },
+        { progress: 90, text: 'Generating insights...' }
+    ];
+    
+    let currentStep = 0;
+    const progressInterval = setInterval(() => {
+        if (currentStep < steps.length) {
+            progressBar.style.width = steps[currentStep].progress + '%';
+            loadingText.textContent = steps[currentStep].text;
+            currentStep++;
+        }
+    }, 800);
 
     try {
         console.log('[AI] Fetching dashboard analysis from:', `${API_URL}/api/ai/dashboard-analysis`);
@@ -128,6 +153,7 @@ async function loadAIDashboardAnalysis() {
             signal: controller.signal
         });
         clearTimeout(timeoutId);
+        clearInterval(progressInterval);
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -135,6 +161,13 @@ async function loadAIDashboardAnalysis() {
         
         const result = await response.json();
         console.log('[AI] Dashboard analysis received successfully');
+
+        // Complete progress
+        progressBar.style.width = '100%';
+        loadingText.textContent = 'Analysis complete!';
+        
+        // Wait a moment to show completion
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Store the full analysis globally
         window.aiAnalysisData = result;
@@ -151,6 +184,7 @@ async function loadAIDashboardAnalysis() {
         `;
 
     } catch (error) {
+        clearInterval(progressInterval);
         console.error('AI Dashboard Analysis Error:', error);
         
         let errorMessage = 'Unknown error occurred';
@@ -385,13 +419,37 @@ async function analyzeMaterial(materialId) {
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     
+    // Show progress indicator
     modalBody.innerHTML = `
         <div class="text-center py-5">
             <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
             <h5>AI is analyzing ${material.partNumber}...</h5>
             <p class="text-muted">${material.description}</p>
+            <div style="width: 80%; margin: 20px auto; background: #e0e0e0; border-radius: 10px; height: 6px;">
+                <div id="materialAnalysisProgress" style="width: 0%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); height: 100%; border-radius: 10px; transition: width 0.5s;"></div>
+            </div>
+            <p style="font-size: 0.9em; color: #999;" id="materialAnalysisStep">Analyzing stock levels...</p>
         </div>
     `;
+    
+    // Simulate progress
+    const progressBar = document.getElementById('materialAnalysisProgress');
+    const stepText = document.getElementById('materialAnalysisStep');
+    const steps = [
+        { progress: 25, text: 'Checking stock status...' },
+        { progress: 50, text: 'Calculating recommendations...' },
+        { progress: 75, text: 'Assessing risks...' },
+        { progress: 95, text: 'Finalizing analysis...' }
+    ];
+    
+    let currentStep = 0;
+    const progressInterval = setInterval(() => {
+        if (currentStep < steps.length && progressBar && stepText) {
+            progressBar.style.width = steps[currentStep].progress + '%';
+            stepText.textContent = steps[currentStep].text;
+            currentStep++;
+        }
+    }, 600);
     
     try {
         const response = await fetch(`${API_URL}/api/ai/material-analysis`, {
@@ -400,7 +458,15 @@ async function analyzeMaterial(materialId) {
             body: JSON.stringify({ material })
         });
         
+        clearInterval(progressInterval);
+        
         const data = await response.json();
+        
+        // Show completion
+        if (progressBar) progressBar.style.width = '100%';
+        if (stepText) stepText.textContent = 'Analysis complete!';
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         modalBody.innerHTML = `
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; margin: -30px -30px 20px -30px; border-radius: 0;">
@@ -412,6 +478,7 @@ async function analyzeMaterial(materialId) {
             </div>
         `;
     } catch (error) {
+        clearInterval(progressInterval);
         modalBody.innerHTML = `
             <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 20px; margin: 15px; border-radius: 4px;">
                 <h6 style="color: #f44336; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Analysis Failed</h6>
@@ -1609,8 +1676,20 @@ function renderStockLedgerTable(data) {
 }
 
 function updateLedgerStats() {
-    const totalIn = stockLedger.filter(e => e.entryType === 'IN').reduce((sum, e) => sum + e.quantityChange, 0);
-    const totalOut = stockLedger.filter(e => e.entryType === 'OUT').reduce((sum, e) => sum + Math.abs(e.quantityChange), 0);
+    if (!stockLedger || stockLedger.length === 0) {
+        document.getElementById('totalStockIn').textContent = '0';
+        document.getElementById('totalStockOut').textContent = '0';
+        document.getElementById('totalTransactions').textContent = '0';
+        return;
+    }
+    
+    const totalIn = stockLedger
+        .filter(e => e.entryType === 'IN' || e.entryType === 'in')
+        .reduce((sum, e) => sum + Math.abs(e.quantityChange || e.quantity || 0), 0);
+    
+    const totalOut = stockLedger
+        .filter(e => e.entryType === 'OUT' || e.entryType === 'out')
+        .reduce((sum, e) => sum + Math.abs(e.quantityChange || e.quantity || 0), 0);
     
     document.getElementById('totalStockIn').textContent = totalIn.toLocaleString();
     document.getElementById('totalStockOut').textContent = totalOut.toLocaleString();
