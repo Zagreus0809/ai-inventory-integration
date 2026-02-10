@@ -326,7 +326,7 @@ function buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lo
   const migneLowStock = migneMaterials.filter(m => m.stock <= m.reorderPoint);
   const commonLowStock = commonMaterials.filter(m => m.stock <= m.reorderPoint);
 
-  return `You are an AI system analyzing SAP inventory data. Provide DETAILED analysis focusing on AI integration benefits, efficiency improvements, and system advantages.
+  return `You are analyzing SAP inventory data. Provide a clear summary of the overall inventory status and AI insights.
 
 ## INVENTORY DATA:
 - Total Materials: ${summary.totalMaterials}
@@ -336,40 +336,38 @@ function buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lo
 - Healthy Stock: ${summary.healthyItems}
 
 ${criticalItems.length > 0 ? `
-## 🚨 CRITICAL ITEMS REQUIRING IMMEDIATE ACTION:
+## 🚨 CRITICAL ITEMS:
 ${criticalItems.slice(0, 5).map(item => `- **${item.partNumber}** (${item.description.substring(0, 30)}): ${item.stock} ${item.unit} → Order ${Math.max(item.reorderPoint * 2 - item.stock, 0)} ${item.unit} = ₱${(Math.max(item.reorderPoint * 2 - item.stock, 0) * item.price).toFixed(2)}`).join('\n')}
 ` : ''}
 
-## PROJECT BREAKDOWN:
+## PROJECT STATUS:
 - Nivio: ${nivioMaterials.length} materials (${nivioLowStock.length} low stock)
 - Migne: ${migneMaterials.length} materials (${migneLowStock.length} low stock)
 - Common: ${commonMaterials.length} materials (${commonLowStock.length} low stock)
 
 ---
 
-Provide analysis in this EXACT format (be DETAILED and SPECIFIC):
+Provide analysis in this format:
 
-## 📊 AI-POWERED INVENTORY ANALYSIS
+## 📊 Overall Inventory Summary
+[2-3 sentences about the current inventory status - what's good, what needs attention]
 
-### 1. 🤖 AI INTEGRATION BENEFITS
-[Explain how AI is being used in THIS system - automated anomaly detection, predictive analytics, real-time monitoring, intelligent alerts. Be specific about what the AI does.]
+## 🤖 AI Insights
+[Explain what the AI system detected - anomalies, patterns, predictions, recommendations. Focus on demonstrating AI value: automated monitoring, intelligent alerts, predictive analytics, efficiency gains]
 
-### 2. ⚡ EFFICIENCY IMPROVEMENTS
-[Detail the efficiency gains - time saved in manual tracking, reduction in data entry errors, faster decision-making, automated reporting. Include specific metrics like "84% reduction in manual tracking time" or "4.2 hours saved daily".]
+## 📈 Stock Entry Summary
+[Brief overview of recent stock movements and trends]
 
-### 3. 💰 COST OPTIMIZATION
-[Analyze cost savings - reduced stockouts, optimized carrying costs, prevented emergency orders, better cash flow management. Include specific amounts in ₱.]
+## 📋 Material Request Summary  
+[Summary of pending requests and procurement needs]
 
-### 4. 📈 SYSTEM ADVANTAGES
-[Explain advantages over traditional manual systems - real-time visibility, automated alerts, data accuracy, fraud detection, transparency, audit trails.]
+## 📚 Stock Ledger Summary
+[Overview of transaction history and inventory accuracy]
 
-### 5. 👥 BENEFITS TO PEOPLE
-[Describe how this helps users - reduced workload, less manual data entry, better decision support, more time for strategic tasks, reduced stress from stockouts.]
+## 🎯 Key Recommendations
+[3-5 specific actionable recommendations with part numbers]
 
-### 6. 🎯 CURRENT STATUS & RECOMMENDATIONS
-[Provide specific recommendations based on the current data - which items to order, which projects need attention, optimization opportunities.]
-
-Keep it DETAILED but CLEAR. Use specific numbers, part numbers, and amounts. Focus on demonstrating AI value!`;
+Keep it clear and focused on AI-powered insights!`;
 }
 
 function generateComprehensiveMockAnalysis(materials, summary) {
