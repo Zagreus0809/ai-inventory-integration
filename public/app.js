@@ -1030,6 +1030,29 @@ async function loadStockEntries() {
     try {
         const response = await fetch(`${API_URL}/api/stock-entry`);
         stockEntries = await response.json();
+        
+        // Merge with demo data if exists
+        const demoEntries = JSON.parse(localStorage.getItem('demoStockEntries') || '[]');
+        if (demoEntries.length > 0) {
+            // Convert demo entries to match expected format
+            const formattedDemoEntries = demoEntries.map(entry => ({
+                id: entry.id,
+                entryType: entry.entryType,
+                date: entry.date,
+                items: [{
+                    partNumber: entry.partNumber,
+                    description: entry.description,
+                    quantity: entry.quantity,
+                    unit: entry.unit
+                }],
+                sourceWarehouse: entry.direction === 'OUT' ? entry.warehouse : '-',
+                targetWarehouse: entry.direction === 'IN' ? entry.warehouse : '-',
+                totalAmount: parseFloat(entry.cost),
+                status: entry.status
+            }));
+            stockEntries = [...formattedDemoEntries, ...stockEntries];
+        }
+        
         renderStockEntriesTable(stockEntries);
     } catch (error) {
         console.error('Error loading stock entries:', error);
@@ -1275,6 +1298,29 @@ async function loadMaterialRequests() {
     try {
         const response = await fetch(`${API_URL}/api/material-request`);
         materialRequests = await response.json();
+        
+        // Merge with demo data if exists
+        const demoRequests = JSON.parse(localStorage.getItem('demoMaterialRequests') || '[]');
+        if (demoRequests.length > 0) {
+            // Convert demo requests to match expected format
+            const formattedDemoRequests = demoRequests.map(req => ({
+                id: req.id,
+                requestType: req.requestType,
+                date: req.createdDate,
+                items: [{
+                    partNumber: req.partNumber,
+                    description: req.description,
+                    quantity: req.quantity,
+                    unit: req.unit
+                }],
+                requiredDate: req.requiredDate,
+                status: req.status,
+                totalAmount: parseFloat(req.estimatedCost),
+                project: req.project
+            }));
+            materialRequests = [...formattedDemoRequests, ...materialRequests];
+        }
+        
         renderMaterialRequestsTable(materialRequests);
     } catch (error) {
         console.error('Error loading material requests:', error);
@@ -1500,6 +1546,13 @@ async function loadStockLedger() {
     try {
         const response = await fetch(`${API_URL}/api/stock-entry/ledger`);
         stockLedger = await response.json();
+        
+        // Merge with demo data if exists
+        const demoLedger = JSON.parse(localStorage.getItem('demoStockLedger') || '[]');
+        if (demoLedger.length > 0) {
+            stockLedger = [...demoLedger, ...stockLedger];
+        }
+        
         renderStockLedgerTable(stockLedger);
         updateLedgerStats();
     } catch (error) {

@@ -1,7 +1,192 @@
-// Demo System - Interactive Walkthrough
-let demoStep = 0;
-let demoInterval = null;
+// Demo Mode - Auto-generate transactions and trigger AI analysis
+let demoRunning = false;
 
+async function startDemo() {
+    if (demoRunning) {
+        alert('Demo is already running!');
+        return;
+    }
+    
+    if (!confirm('Demo Mode will generate stock entries, material requests, and stock ledger transactions based on the 50 materials. Continue?')) {
+        return;
+    }
+    
+    demoRunning = true;
+    
+    // Show loading indicator
+    const demoBtn = document.querySelector('[onclick="startDemo()"]');
+    if (demoBtn) {
+        demoBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Demo Data...';
+        demoBtn.disabled = true;
+    }
+    
+    try {
+        console.log('[Demo] Starting demo mode...');
+        
+        // Generate all transactions in background
+        await generateDemoData();
+        
+        // Refresh dashboard to show new data
+        console.log('[Demo] Refreshing dashboard...');
+        await loadDashboard();
+        
+        // Trigger AI analysis
+        console.log('[Demo] Triggering AI analysis...');
+        setTimeout(() => {
+            loadAIDashboardAnalysis();
+            if (materials.filter(m => m.stock <= m.reorderPoint).length > 0) {
+                setTimeout(() => autoAnalyzeLowStock(), 2000);
+            }
+        }, 1000);
+        
+        alert('✅ Demo data generated! Stock entries, material requests, and stock ledger have been populated. AI is analyzing now.');
+        
+    } catch (error) {
+        console.error('[Demo] Error:', error);
+        alert('Demo generation failed: ' + error.message);
+    } finally {
+        demoRunning = false;
+        if (demoBtn) {
+            demoBtn.innerHTML = '<i class="fas fa-play"></i> Demo Mode';
+            demoBtn.disabled = false;
+        }
+    }
+}
+
+async function generateDemoData() {
+    console.log('[Demo] Generating stock entries...');
+    await generateDemoStockEntries();
+    
+    console.log('[Demo] Generating material requests...');
+    await generateDemoMaterialRequests();
+    
+    console.log('[Demo] Generating stock ledger...');
+    await generateDemoStockLedger();
+    
+    console.log('[Demo] All demo data generated successfully');
+}
+
+async function generateDemoStockEntries() {
+    const entryTypes = [
+        { type: 'Material Receipt', direction: 'IN' },
+        { type: 'Material Issue', direction: 'OUT' },
+        { type: 'Material Transfer', direction: 'TRANSFER' },
+        { type: 'Material Consumption', direction: 'OUT' }
+    ];
+    
+    const warehouses = ['Main Warehouse', 'Production Floor', 'Quality Control', 'Finished Goods'];
+    
+    // Generate 20 stock entries from random materials
+    const entries = [];
+    for (let i = 0; i < 20; i++) {
+        const material = materials[Math.floor(Math.random() * materials.length)];
+        const entryType = entryTypes[Math.floor(Math.random() * entryTypes.length)];
+        const qty = Math.floor(Math.random() * 200) + 50;
+        const warehouse = warehouses[Math.floor(Math.random() * warehouses.length)];
+        
+        entries.push({
+            id: `SE-${Date.now()}-${i}`,
+            entryType: entryType.type,
+            direction: entryType.direction,
+            partNumber: material.partNumber,
+            description: material.description,
+            quantity: qty,
+            unit: material.unit,
+            warehouse: warehouse,
+            date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+            status: 'Submitted',
+            cost: (qty * material.price).toFixed(2)
+        });
+    }
+    
+    // Store in localStorage for persistence
+    localStorage.setItem('demoStockEntries', JSON.stringify(entries));
+    console.log('[Demo] Generated', entries.length, 'stock entries');
+    
+    return entries;
+}
+
+async function generateDemoMaterialRequests() {
+    const requestTypes = ['Purchase', 'Transfer', 'Material Issue', 'Manufacture'];
+    const statuses = ['Pending', 'Approved', 'Ordered', 'Stopped'];
+    
+    // Get low stock materials
+    const lowStockMaterials = materials.filter(m => m.stock <= m.reorderPoint);
+    
+    // Generate requests for low stock items
+    const requests = [];
+    for (let i = 0; i < Math.min(lowStockMaterials.length, 15); i++) {
+        const material = lowStockMaterials[i];
+        const orderQty = Math.max(material.reorderPoint * 2 - material.stock, 0);
+        const requestType = requestTypes[Math.floor(Math.random() * requestTypes.length)];
+        const status = statuses[Math.floor(Math.random() * statuses.length)];
+        
+        requests.push({
+            id: `MR-${Date.now()}-${i}`,
+            requestType: requestType,
+            partNumber: material.partNumber,
+            description: material.description,
+            quantity: Math.ceil(orderQty),
+            unit: material.unit,
+            requiredDate: new Date(Date.now() + Math.random() * 14 * 24 * 60 * 60 * 1000).toISOString(),
+            status: status,
+            project: material.project,
+            estimatedCost: (orderQty * material.price).toFixed(2),
+            createdDate: new Date(Date.now() - Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString()
+        });
+    }
+    
+    // Store in localStorage
+    localStorage.setItem('demoMaterialRequests', JSON.stringify(requests));
+    console.log('[Demo] Generated', requests.length, 'material requests');
+    
+    return requests;
+}
+
+async function generateDemoStockLedger() {
+    const ledgerEntries = [];
+    const warehouses = ['Main Warehouse', 'Production Floor', 'Quality Control'];
+    
+    // Generate ledger entries for random materials
+    const selectedMaterials = materials.slice(0, 30);
+    
+    for (const material of selectedMaterials) {
+        let runningBalance = material.stock;
+        const numTransactions = Math.floor(Math.random() * 5) + 3;
+        
+        for (let i = 0; i < numTransactions; i++) {
+            const isIncoming = Math.random() > 0.5;
+            const qty = Math.floor(Math.random() * 100) + 20;
+            const change = isIncoming ? qty : -qty;
+            runningBalance += change;
+            
+            ledgerEntries.push({
+                id: `LE-${Date.now()}-${material.id}-${i}`,
+                date: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+                voucherNo: `${isIncoming ? 'SE-IN' : 'SE-OUT'}-${Math.floor(Math.random() * 10000)}`,
+                partNumber: material.partNumber,
+                description: material.description,
+                entryType: isIncoming ? 'IN' : 'OUT',
+                quantity: Math.abs(change),
+                unit: material.unit,
+                balance: Math.max(runningBalance, 0),
+                warehouse: warehouses[Math.floor(Math.random() * warehouses.length)],
+                project: material.project
+            });
+        }
+    }
+    
+    // Sort by date descending
+    ledgerEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    // Store in localStorage
+    localStorage.setItem('demoStockLedger', JSON.stringify(ledgerEntries));
+    console.log('[Demo] Generated', ledgerEntries.length, 'stock ledger entries');
+    
+    return ledgerEntries;
+}
+
+// Dummy array for compatibility
 const demoSteps = [
     {
         title: "Welcome to AI Inventory Integration (ERPNext)",
@@ -264,75 +449,7 @@ const demoSteps = [
     }
 ];
 
-function startDemo() {
-    demoStep = 0;
-    showDemoStep();
-}
-
-function showDemoStep() {
-    const modal = document.getElementById('demoModal');
-    const body = document.getElementById('demoModalBody');
-    
-    if (!modal || !body) {
-        console.error('Demo modal elements not found');
-        return;
-    }
-    
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    
-    const step = demoSteps[demoStep];
-    
-    body.innerHTML = `
-        <div style="margin-bottom: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px; margin: -30px -30px 20px -30px;">
-                <h3 style="margin: 0; color: white;">${step.title}</h3>
-                <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 0.9em;">Step ${demoStep + 1} of ${demoSteps.length}</p>
-            </div>
-            ${step.content}
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 2px solid #e0e0e0;">
-            <button onclick="prevDemoStep()" class="btn btn-secondary" ${demoStep === 0 ? 'disabled' : ''}>
-                <i class="fas fa-arrow-left"></i> Previous
-            </button>
-            <div style="color: #666;">
-                <i class="fas fa-circle" style="font-size: 8px; margin: 0 5px;"></i>
-                Step ${demoStep + 1} / ${demoSteps.length}
-            </div>
-            <button onclick="nextDemoStep()" class="btn btn-primary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                ${demoStep === demoSteps.length - 1 ? 'Finish' : 'Next'} <i class="fas fa-arrow-right"></i>
-            </button>
-        </div>
-    `;
-    
-    if (step.action) {
-        try {
-            step.action();
-        } catch (error) {
-            console.error('Demo step action error:', error);
-        }
-    }
-}
-
-function nextDemoStep() {
-    if (demoStep < demoSteps.length - 1) {
-        demoStep++;
-        showDemoStep();
-    } else {
-        closeDemoModal();
-    }
-}
-
-function prevDemoStep() {
-    if (demoStep > 0) {
-        demoStep--;
-        showDemoStep();
-    }
-}
-
-function closeDemoModal() {
-    const modal = document.getElementById('demoModal');
-    modal.style.display = 'none';
-    document.body.style.overflow = 'auto';
-    demoStep = 0;
-}
+// Keep old functions for compatibility
+function showDemoStep() {}
+function nextDemoStep() {}
+function prevDemoStep() {}
