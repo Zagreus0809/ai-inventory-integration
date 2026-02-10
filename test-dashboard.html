@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Dashboard Test</h1>
+    <div id="status"></div>
+    <div id="results"></div>
+    
+    <script>
+        const API_URL = 'http://localhost:3000';
+        const status = document.getElementById('status');
+        const results = document.getElementById('results');
+        
+        async function testDashboard() {
+            try {
+                status.innerHTML = 'Testing /api/analytics/dashboard...';
+                const response = await fetch(`${API_URL}/api/analytics/dashboard`);
+                const data = await response.json();
+                
+                results.innerHTML += `<h3>Dashboard API Response:</h3>`;
+                results.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                
+                status.innerHTML = 'Testing /api/ai/dashboard-analysis...';
+                const aiResponse = await fetch(`${API_URL}/api/ai/dashboard-analysis`);
+                const aiData = await aiResponse.json();
+                
+                results.innerHTML += `<h3>AI Analysis API Response:</h3>`;
+                results.innerHTML += `<p>Success: ${aiData.success}</p>`;
+                results.innerHTML += `<p>Analysis length: ${aiData.analysis.length} characters</p>`;
+                results.innerHTML += `<p>First 500 chars:</p>`;
+                results.innerHTML += `<pre>${aiData.analysis.substring(0, 500)}</pre>`;
+                
+                status.innerHTML = 'All tests passed!';
+            } catch (error) {
+                status.innerHTML = `Error: ${error.message}`;
+                results.innerHTML += `<pre>${error.stack}</pre>`;
+            }
+        }
+        
+        testDashboard();
+    </script>
+</body>
+</html>

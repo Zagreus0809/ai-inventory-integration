@@ -57,6 +57,9 @@ function showSection(sectionId) {
     
     // Load section-specific data
     if (sectionId === 'materials') loadMaterials();
+    if (sectionId === 'stock-entry') loadStockEntries();
+    if (sectionId === 'material-request') loadMaterialRequests();
+    if (sectionId === 'stock-ledger') loadStockLedger();
 }
 
 
@@ -600,22 +603,6 @@ function formatAIAnalysis(text) {
         .replace(/---/g, '<hr style="border: none; border-top: 2px solid #e0e0e0; margin: 30px 0;">');
 }
 
-// Dashboard
-async function loadDashboard() {
-    try {
-        const response = await fetch(`${API_URL}/api/analytics/dashboard`);
-        dashboardData = await response.json();
-        
-        document.getElementById('totalMaterials').textContent = dashboardData.totalMaterials;
-        document.getElementById('totalValue').textContent = `$${parseFloat(dashboardData.totalValue).toLocaleString()}`;
-        document.getElementById('lowStockItems').textContent = dashboardData.lowStockItems;
-        document.getElementById('turnoverRate').textContent = '85%';
-        
-        renderCategoryChart(dashboardData.groupings);
-        loadRecentTransactions();
-    } catch (error) {
-        console.error('Error loading dashboard:', error);
-    }
 }
 
 function renderCategoryChart(groupings) {
@@ -625,38 +612,47 @@ function renderCategoryChart(groupings) {
         return;
     }
     
-    console.log('[Chart] Rendering category chart with', groupings.length, 'groupings');
-    
-    // Destroy existing chart if it exists
-    if (window.categoryChartInstance) {
-        window.categoryChartInstance.destroy();
+    if (!groupings || groupings.length === 0) {
+        console.error('[Chart] No groupings data provided');
+        return;
     }
     
-    window.categoryChartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: groupings.map(g => g.grouping),
-            datasets: [{
-                data: groupings.map(g => g.count),
-                backgroundColor: [
-                    '#667eea', '#764ba2', '#f093fb', '#f5576c',
-                    '#fa709a', '#fee140', '#30cfd0', '#330867',
-                    '#4facfe', '#00f2fe', '#43e97b', '#38f9d7'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
+    console.log('[Chart] Rendering category chart with', groupings.length, 'groupings');
+    
+    try {
+        // Destroy existing chart if it exists
+        if (window.categoryChartInstance) {
+            window.categoryChartInstance.destroy();
+        }
+        
+        window.categoryChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: groupings.map(g => g.grouping),
+                datasets: [{
+                    data: groupings.map(g => g.count),
+                    backgroundColor: [
+                        '#667eea', '#764ba2', '#f093fb', '#f5576c',
+                        '#fa709a', '#fee140', '#30cfd0', '#330867',
+                        '#4facfe', '#00f2fe', '#43e97b', '#38f9d7'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
                 }
             }
-        }
-    });
-    
-    console.log('[Chart] Category chart rendered successfully');
+        });
+        
+        console.log('[Chart] Category chart rendered successfully');
+    } catch (error) {
+        console.error('[Chart] Error rendering category chart:', error);
+    }
 }
 
 function renderTrendChart(groupings) {
@@ -666,59 +662,68 @@ function renderTrendChart(groupings) {
         return;
     }
     
-    console.log('[Chart] Rendering trend chart with', groupings.length, 'groupings');
-    
-    // Destroy existing chart if it exists
-    if (window.trendChartInstance) {
-        window.trendChartInstance.destroy();
+    if (!groupings || groupings.length === 0) {
+        console.error('[Chart] No groupings data provided for trend chart');
+        return;
     }
     
-    // Create stock level data
-    const labels = groupings.map(g => g.grouping);
-    const stockData = groupings.map(g => g.totalStock);
-    const lowStockData = groupings.map(g => g.lowStock);
+    console.log('[Chart] Rendering trend chart with', groupings.length, 'groupings');
     
-    console.log('[Chart] Stock data:', stockData);
-    console.log('[Chart] Low stock data:', lowStockData);
-    
-    window.trendChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Total Stock',
-                    data: stockData,
-                    backgroundColor: '#667eea',
-                    borderColor: '#667eea',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Low Stock Items',
-                    data: lowStockData,
-                    backgroundColor: '#f5576c',
-                    borderColor: '#f5576c',
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
+    try {
+        // Destroy existing chart if it exists
+        if (window.trendChartInstance) {
+            window.trendChartInstance.destroy();
+        }
+        
+        // Create stock level data
+        const labels = groupings.map(g => g.grouping);
+        const stockData = groupings.map(g => g.totalStock);
+        const lowStockData = groupings.map(g => g.lowStock);
+        
+        console.log('[Chart] Stock data:', stockData);
+        console.log('[Chart] Low stock data:', lowStockData);
+        
+        window.trendChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Total Stock',
+                        data: stockData,
+                        backgroundColor: '#667eea',
+                        borderColor: '#667eea',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Low Stock Items',
+                        data: lowStockData,
+                        backgroundColor: '#f5576c',
+                        borderColor: '#f5576c',
+                        borderWidth: 1
+                    }
+                ]
             },
-            plugins: {
-                legend: {
-                    position: 'bottom'
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
                 }
             }
-        }
-    });
-    
-    console.log('[Chart] Trend chart rendered successfully');
+        });
+        
+        console.log('[Chart] Trend chart rendered successfully');
+    } catch (error) {
+        console.error('[Chart] Error rendering trend chart:', error);
+    }
 }
 
 function renderMaterialsSummary(groupings) {
@@ -728,56 +733,67 @@ function renderMaterialsSummary(groupings) {
         return;
     }
     
+    if (!groupings || groupings.length === 0) {
+        console.error('[Table] No groupings data provided for materials summary');
+        container.innerHTML = '<p class="loading">No materials data available</p>';
+        return;
+    }
+    
     console.log('[Table] Rendering materials summary with', groupings.length, 'groupings');
     
-    const html = `
-        <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-                <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Category</th>
-                    <th style="padding: 12px; text-align: center; font-weight: 600;">Total Items</th>
-                    <th style="padding: 12px; text-align: center; font-weight: 600;">Total Stock</th>
-                    <th style="padding: 12px; text-align: center; font-weight: 600;">Low Stock</th>
-                    <th style="padding: 12px; text-align: right; font-weight: 600;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${groupings.map(g => {
-                    const healthPercent = g.lowStock === 0 ? 100 : ((g.count - g.lowStock) / g.count * 100);
-                    const statusColor = healthPercent >= 80 ? '#4caf50' : healthPercent >= 50 ? '#ff9800' : '#f44336';
-                    const statusText = healthPercent >= 80 ? 'Healthy' : healthPercent >= 50 ? 'Warning' : 'Critical';
-                    
-                    return `
-                        <tr style="border-bottom: 1px solid #e0e0e0;">
-                            <td style="padding: 12px; font-weight: 500;">${g.grouping}</td>
-                            <td style="padding: 12px; text-align: center;">${g.count}</td>
-                            <td style="padding: 12px; text-align: center; font-weight: 600;">${g.totalStock.toLocaleString()}</td>
-                            <td style="padding: 12px; text-align: center; color: ${g.lowStock > 0 ? '#f44336' : '#4caf50'}; font-weight: 600;">
-                                ${g.lowStock}
-                            </td>
-                            <td style="padding: 12px; text-align: right;">
-                                <span style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 600;">
-                                    ${statusText}
-                                </span>
-                            </td>
-                        </tr>
-                    `;
-                }).join('')}
-            </tbody>
-            <tfoot>
-                <tr style="background: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: 600;">
-                    <td style="padding: 12px;">TOTAL</td>
-                    <td style="padding: 12px; text-align: center;">${groupings.reduce((sum, g) => sum + g.count, 0)}</td>
-                    <td style="padding: 12px; text-align: center;">${groupings.reduce((sum, g) => sum + g.totalStock, 0).toLocaleString()}</td>
-                    <td style="padding: 12px; text-align: center; color: #f44336;">${groupings.reduce((sum, g) => sum + g.lowStock, 0)}</td>
-                    <td style="padding: 12px;"></td>
-                </tr>
-            </tfoot>
-        </table>
-    `;
-    
-    container.innerHTML = html;
-    console.log('[Table] Materials summary rendered successfully');
+    try {
+        const html = `
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600;">Category</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600;">Total Items</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600;">Total Stock</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600;">Low Stock</th>
+                        <th style="padding: 12px; text-align: right; font-weight: 600;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${groupings.map(g => {
+                        const healthPercent = g.lowStock === 0 ? 100 : ((g.count - g.lowStock) / g.count * 100);
+                        const statusColor = healthPercent >= 80 ? '#4caf50' : healthPercent >= 50 ? '#ff9800' : '#f44336';
+                        const statusText = healthPercent >= 80 ? 'Healthy' : healthPercent >= 50 ? 'Warning' : 'Critical';
+                        
+                        return `
+                            <tr style="border-bottom: 1px solid #e0e0e0;">
+                                <td style="padding: 12px; font-weight: 500;">${g.grouping}</td>
+                                <td style="padding: 12px; text-align: center;">${g.count}</td>
+                                <td style="padding: 12px; text-align: center; font-weight: 600;">${g.totalStock.toLocaleString()}</td>
+                                <td style="padding: 12px; text-align: center; color: ${g.lowStock > 0 ? '#f44336' : '#4caf50'}; font-weight: 600;">
+                                    ${g.lowStock}
+                                </td>
+                                <td style="padding: 12px; text-align: right;">
+                                    <span style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 600;">
+                                        ${statusText}
+                                    </span>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+                <tfoot>
+                    <tr style="background: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: 600;">
+                        <td style="padding: 12px;">TOTAL</td>
+                        <td style="padding: 12px; text-align: center;">${groupings.reduce((sum, g) => sum + g.count, 0)}</td>
+                        <td style="padding: 12px; text-align: center;">${groupings.reduce((sum, g) => sum + g.totalStock, 0).toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: center; color: #f44336;">${groupings.reduce((sum, g) => sum + g.lowStock, 0)}</td>
+                        <td style="padding: 12px;"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        `;
+        
+        container.innerHTML = html;
+        console.log('[Table] Materials summary rendered successfully');
+    } catch (error) {
+        console.error('[Table] Error rendering materials summary:', error);
+        container.innerHTML = '<p class="loading">Error loading materials summary</p>';
+    }
 }
 
 async function loadRecentTransactions() {
