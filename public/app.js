@@ -424,16 +424,27 @@ async function analyzeMaterial(materialId) {
 function formatAIAnalysis(text) {
     if (!text) return '<p class="text-muted">No analysis available</p>';
     
-    // Process tables
+    // Split into lines for processing
     const lines = text.split('\n');
+    let result = [];
     let inTable = false;
     let tableRows = [];
-    let result = [];
+    let inList = false;
     
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+        const line = lines[i].trim();
         
-        if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        // Skip empty lines
+        if (!line) {
+            if (inList) {
+                result.push('</ul>');
+                inList = false;
+            }
+            continue;
+        }
+        
+        // Handle tables
+        if (line.startsWith('|') && line.endsWith('|')) {
             if (line.includes('---')) continue;
             
             if (!inTable) {
@@ -444,51 +455,79 @@ function formatAIAnalysis(text) {
             const cells = line.split('|').filter(c => c.trim()).map(c => c.trim());
             const isHeader = tableRows.length === 0;
             const tag = isHeader ? 'th' : 'td';
-            tableRows.push(`<tr>${cells.map(c => `<${tag} style="padding: 12px; ${isHeader ? 'background: #f8f9fa; font-weight: 600;' : ''}">${c}</${tag}>`).join('')}</tr>`);
+            tableRows.push(`<tr>${cells.map(c => `<${tag} style="padding: 10px; border-bottom: 1px solid #e0e0e0; ${isHeader ? 'background: #f5f5f5; font-weight: 600; color: #333;' : 'color: #555;'}">${c}</${tag}>`).join('')}</tr>`);
         } else {
+            // Close table if we were in one
             if (inTable) {
-                result.push('<div class="table-responsive my-4" style="border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"><table style="width: 100%; border-collapse: collapse; background: white;">');
+                result.push('<div style="overflow-x: auto; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><table style="width: 100%; border-collapse: collapse; background: white;">');
                 result.push(tableRows.join('\n'));
                 result.push('</table></div>');
                 tableRows = [];
                 inTable = false;
             }
-            result.push(line);
+            
+            // Handle bullet points
+            if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
+                if (!inList) {
+                    result.push('<ul style="margin: 15px 0; padding-left: 25px;">');
+                    inList = true;
+                }
+                const content = line.substring(2).trim();
+                result.push(`<li style="margin: 8px 0; color: #555; line-height: 1.6;">${content}</li>`);
+            } else {
+                if (inList) {
+                    result.push('</ul>');
+                    inList = false;
+                }
+                result.push(line);
+            }
         }
     }
     
+    // Close any open table or list
     if (inTable && tableRows.length > 0) {
-        result.push('<div class="table-responsive my-4" style="border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"><table style="width: 100%; border-collapse: collapse; background: white;">');
+        result.push('<div style="overflow-x: auto; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><table style="width: 100%; border-collapse: collapse; background: white;">');
         result.push(tableRows.join('\n'));
         result.push('</table></div>');
+    }
+    if (inList) {
+        result.push('</ul>');
     }
     
     let formatted = result.join('\n');
     
     // Apply enhanced formatting with better styling
     return formatted
-        .replace(/## (.*)/g, '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; border-radius: 8px; margin: 25px 0 15px 0;"><h4 style="margin: 0; font-size: 1.3em;"><i class="fas fa-chart-line" style="margin-right: 10px;"></i>$1</h4></div>')
-        .replace(/### (.*)/g, '<h5 style="color: #667eea; margin: 20px 0 12px 0; font-size: 1.1em; font-weight: 600; border-left: 4px solid #667eea; padding-left: 12px;">$1</h5>')
+        // Main headers - large, colorful
+        .replace(/## (.*)/g, '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; border-radius: 8px; margin: 30px 0 20px 0; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);"><h3 style="margin: 0; font-size: 1.4em; font-weight: 600;">$1</h3></div>')
+        // Sub headers - clean, simple
+        .replace(/### (.*)/g, '<h4 style="color: #667eea; margin: 25px 0 15px 0; font-size: 1.2em; font-weight: 600; padding-left: 15px; border-left: 4px solid #667eea;">$1</h4>')
+        // Bold text
         .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: 600;">$1</strong>')
-        .replace(/⚠️/g, '<span style="color: #ff9800; font-size: 1.2em;">⚠️</span>')
-        .replace(/✅/g, '<span style="color: #4caf50; font-size: 1.2em;">✅</span>')
-        .replace(/🔴/g, '<span style="color: #f44336; font-size: 1.2em;">🔴</span>')
-        .replace(/🟡/g, '<span style="color: #ff9800; font-size: 1.2em;">🟡</span>')
-        .replace(/🟢/g, '<span style="color: #4caf50; font-size: 1.2em;">🟢</span>')
-        .replace(/⬆️/g, '<i class="fas fa-arrow-up" style="color: #4caf50;"></i>')
-        .replace(/⬇️/g, '<i class="fas fa-arrow-down" style="color: #f44336;"></i>')
-        .replace(/⚡/g, '<i class="fas fa-bolt" style="color: #ff9800;"></i>')
-        .replace(/🚀/g, '<i class="fas fa-rocket" style="color: #667eea;"></i>')
-        .replace(/🎯/g, '<i class="fas fa-bullseye" style="color: #00bcd4;"></i>')
-        .replace(/💪/g, '<i class="fas fa-hand-rock" style="color: #4caf50;"></i>')
-        .replace(/📊/g, '<i class="fas fa-chart-bar" style="color: #667eea;"></i>')
-        .replace(/📅/g, '<i class="fas fa-calendar" style="color: #00bcd4;"></i>')
-        .replace(/🚨/g, '<i class="fas fa-exclamation-triangle" style="color: #f44336;"></i>')
-        .replace(/🤖/g, '<i class="fas fa-robot" style="color: #667eea;"></i>')
-        .replace(/💰/g, '<i class="fas fa-dollar-sign" style="color: #4caf50;"></i>')
-        .replace(/\n\n/g, '</p><p style="line-height: 1.8; color: #555; margin: 10px 0;">')
+        // Icons and emojis with better spacing
+        .replace(/⚠️/g, '<span style="font-size: 1.3em; margin-right: 8px;">⚠️</span>')
+        .replace(/✅/g, '<span style="font-size: 1.3em; margin-right: 8px;">✅</span>')
+        .replace(/🔴/g, '<span style="font-size: 1.3em; margin-right: 8px;">🔴</span>')
+        .replace(/🟡/g, '<span style="font-size: 1.3em; margin-right: 8px;">🟡</span>')
+        .replace(/🟢/g, '<span style="font-size: 1.3em; margin-right: 8px;">🟢</span>')
+        .replace(/⬆️/g, '<i class="fas fa-arrow-up" style="color: #4caf50; margin: 0 5px;"></i>')
+        .replace(/⬇️/g, '<i class="fas fa-arrow-down" style="color: #f44336; margin: 0 5px;"></i>')
+        .replace(/⚡/g, '<i class="fas fa-bolt" style="color: #ff9800; margin: 0 5px;"></i>')
+        .replace(/🚀/g, '<i class="fas fa-rocket" style="color: #667eea; margin: 0 5px;"></i>')
+        .replace(/🎯/g, '<i class="fas fa-bullseye" style="color: #00bcd4; margin: 0 5px;"></i>')
+        .replace(/💪/g, '<i class="fas fa-hand-rock" style="color: #4caf50; margin: 0 5px;"></i>')
+        .replace(/📊/g, '<i class="fas fa-chart-bar" style="color: #667eea; margin: 0 5px;"></i>')
+        .replace(/📅/g, '<i class="fas fa-calendar" style="color: #00bcd4; margin: 0 5px;"></i>')
+        .replace(/🚨/g, '<i class="fas fa-exclamation-triangle" style="color: #f44336; margin: 0 5px;"></i>')
+        .replace(/🤖/g, '<i class="fas fa-robot" style="color: #667eea; margin: 0 5px;"></i>')
+        .replace(/💰/g, '<i class="fas fa-dollar-sign" style="color: #4caf50; margin: 0 5px;"></i>')
+        .replace(/📦/g, '<i class="fas fa-box" style="color: #667eea; margin: 0 5px;"></i>')
+        .replace(/💡/g, '<i class="fas fa-lightbulb" style="color: #ffc107; margin: 0 5px;"></i>')
+        // Paragraphs with better spacing
+        .replace(/\n\n/g, '</p><p style="line-height: 1.8; color: #555; margin: 15px 0; font-size: 1.05em;">')
         .replace(/\n/g, '<br>')
-        .replace(/---/g, '<hr style="border: none; border-top: 2px solid #e0e0e0; margin: 25px 0;">');
+        // Horizontal rules
+        .replace(/---/g, '<hr style="border: none; border-top: 2px solid #e0e0e0; margin: 30px 0;">');
 }
 
 // Dashboard

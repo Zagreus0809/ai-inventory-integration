@@ -326,128 +326,56 @@ function buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lo
   const migneLowStock = migneMaterials.filter(m => m.stock <= m.reorderPoint);
   const commonLowStock = commonMaterials.filter(m => m.stock <= m.reorderPoint);
 
-  return `You are analyzing a REAL SAP inventory system for an electronics manufacturing company with 50 actual materials.
+  return `You are analyzing inventory for an electronics company. Provide a CONCISE, EASY-TO-READ analysis.
 
-## 📋 COMPLETE INVENTORY DATA - USE THESE EXACT NUMBERS!
+## DATA SUMMARY:
+- Total: ${summary.totalMaterials} materials
+- Critical (need immediate order): ${summary.criticalItems}
+- Low Stock: ${summary.lowStockItems}
+- Healthy: ${summary.healthyItems}
 
-### 🎯 SYSTEM OVERVIEW:
-- **Total Materials**: ${summary.totalMaterials} items
-- **Total Stock Units**: ${summary.totalStock.toLocaleString()} units across all materials
-- **Critical Items (Below Reorder)**: ${summary.criticalItems} materials
-- **Low Stock Items (At/Near Reorder)**: ${summary.lowStockItems} materials
-- **Healthy Items**: ${summary.healthyItems} materials
-
-### 🚨 CRITICAL ITEMS REQUIRING IMMEDIATE ACTION:
 ${criticalItems.length > 0 ? `
-| Part Number | Description | Current Stock | Reorder Point | Category | Project | Unit Price | Order Cost |
-|------------|-------------|---------------|---------------|----------|---------|------------|------------|
-${criticalTable}
-
-**TOTAL CRITICAL INVESTMENT NEEDED**: ₱${criticalItems.reduce((sum, item) => sum + (item.reorderPoint * 2 * item.price), 0).toFixed(2)}
-` : 'No critical items - all materials above reorder point'}
-
-### ⚠️ LOW STOCK ITEMS (Approaching Reorder Point):
-${lowStockItems.length > 0 ? `
-| Part Number | Description | Current Stock | Reorder Point | Project | Category | Order Cost |
-|------------|-------------|---------------|---------------|---------|----------|------------|
-${lowStockTable}
-
-**TOTAL LOW STOCK INVESTMENT**: ₱${lowStockItems.reduce((sum, item) => sum + ((item.reorderPoint * 2 - item.stock) * item.price), 0).toFixed(2)}
-` : 'No low stock items'}
-
-### ✅ HEALTHY STOCK ITEMS (Well Stocked):
-${healthyItems.length > 0 ? `
-| Part Number | Description | Current Stock | Reorder Point | Project | Category |
-|------------|-------------|---------------|---------------|---------|----------|
-${healthyTable}
+## 🚨 CRITICAL ITEMS (Order TODAY):
+${criticalItems.slice(0, 5).map(item => `- **${item.partNumber}** (${item.description.substring(0, 30)}): ${item.stock} ${item.unit} → Order ${Math.max(item.reorderPoint * 2 - item.stock, 0)} ${item.unit} = ₱${(Math.max(item.reorderPoint * 2 - item.stock, 0) * item.price).toFixed(2)}`).join('\n')}
 ` : ''}
 
-### 📊 PROJECT BREAKDOWN:
-- **Nivio Project**: ${nivioMaterials.length} materials, ${nivioLowStock.length} low stock
-- **Migne Project**: ${migneMaterials.length} materials, ${migneLowStock.length} low stock  
-- **Common/Direct**: ${commonMaterials.length} materials, ${commonLowStock.length} low stock
+${lowStockItems.length > 0 ? `
+## ⚠️ LOW STOCK (Order This Week):
+${lowStockItems.slice(0, 5).map(item => `- **${item.partNumber}**: ${item.stock}/${item.reorderPoint} ${item.unit} - ${item.project}`).join('\n')}
+` : ''}
 
-### 📦 CATEGORY BREAKDOWN:
-${summary.groupings.map(g => `- **${g.grouping}**: ${g.count} items, ${g.totalStock.toLocaleString()} units total, ${g.lowStock} low stock items`).join('\n')}
+## PROJECTS:
+- Nivio: ${nivioMaterials.length} materials (${nivioLowStock.length} low)
+- Migne: ${migneMaterials.length} materials (${migneLowStock.length} low)
+- Common: ${commonMaterials.length} materials (${commonLowStock.length} low)
 
 ---
 
-## 🎯 YOUR TASK: Provide SPECIFIC analysis using EXACT part numbers and quantities above!
+Provide analysis in this EXACT format (keep it SHORT and CLEAR):
 
-### 1. 🎯 EXECUTIVE SUMMARY (3-4 sentences)
-- State EXACT number of critical items with SPECIFIC part numbers (e.g., "G02277700, PCB-S18, XNM-AU-00224")
-- Mention EXACT total investment needed (use the calculated totals above)
-- Identify which PROJECT has most issues (Nivio/Migne/Common)
-- State URGENCY level based on actual critical count
+## 📊 Quick Summary
+[2-3 sentences about overall status]
 
-### 2. 🚨 IMMEDIATE ACTIONS (Use EXACT part numbers from critical table!)
-For EACH critical item listed above, provide:
-- **Part Number**: (copy exact part number like G02277700)
-- **Description**: (copy from table)
-- **Current Stock**: (exact number with unit)
-- **Order Quantity**: (recommend 2x reorder point minus current stock)
-- **Estimated Cost**: (calculate: order quantity × unit price)
-- **Urgency**: TODAY (if stock < 50% of reorder) or THIS WEEK
-- **Project Impact**: Which project (Nivio/Migne/Common) will be affected
+## 🚨 Urgent Actions
+[List 3-5 most critical items with part numbers and order quantities]
 
-### 3. 📊 CATEGORY-SPECIFIC ANALYSIS
-For EACH category with low stock (PCB, Cu wire, Resin, Bobbin, Cable, Case, Ferrite, Pin header, Soldering, Supplies, Sensor Case):
-- List SPECIFIC part numbers that are low
-- Calculate total investment needed for that category
-- Recommend priority order for that category
-- Mention which projects use those materials
+## 💰 Investment Needed
+- Critical items: ₱[amount]
+- Low stock: ₱[amount]
+- Total: ₱[amount]
 
-### 4. 💰 FINANCIAL IMPACT (Use calculated totals!)
-- **Critical Items Investment**: ₱[use exact total from critical table]
-- **Low Stock Items Investment**: ₱[use exact total from low stock table]
-- **Total Recommended Investment**: ₱[sum of both]
-- **Cost by Project**: Break down by Nivio/Migne/Common
-- **Potential Stockout Cost**: Estimate production delays
+## 📈 By Project
+**Nivio**: [brief status]
+**Migne**: [brief status]
+**Common**: [brief status]
 
-### 5. 📈 PROJECT-SPECIFIC RECOMMENDATIONS
-**Nivio Project** (${nivioMaterials.length} materials, ${nivioLowStock.length} low):
-- List specific low stock part numbers for Nivio
-- Calculate total investment needed for Nivio materials
-- Priority actions for Nivio
+## 🎯 This Week's Priorities
+1. [Specific action with part number]
+2. [Specific action with part number]
+3. [Specific action with part number]
 
-**Migne Project** (${migneMaterials.length} materials, ${migneLowStock.length} low):
-- List specific low stock part numbers for Migne
-- Calculate total investment needed for Migne materials
-- Priority actions for Migne
-
-**Common/Direct** (${commonMaterials.length} materials, ${commonLowStock.length} low):
-- List specific low stock part numbers
-- Calculate total investment needed
-- Priority actions
-
-### 6. 🎯 TOP 10 PRIORITY ACTIONS (Use REAL part numbers!)
-List in order of urgency with EXACT details:
-1. **[Part Number]**: Order [X] units - Current: [Y] - Cost: ₱[Z] - Project: [Name] - Reason: [Specific]
-2. **[Part Number]**: Order [X] units - Current: [Y] - Cost: ₱[Z] - Project: [Name] - Reason: [Specific]
-(Continue for all critical items)
-
-### 7. 📅 7-DAY ACTION PLAN (Use specific part numbers!)
-**Monday**:
-- Create PO for [list 3-5 specific part numbers]
-- Contact suppliers for [specific materials]
-- Estimated cost: ₱[calculate from specific items]
-
-**Tuesday**:
-- Follow up on [specific part numbers] delivery
-- Review [specific project] material needs
-- Prepare receiving area for [specific materials]
-
-**Wednesday**:
-- Create PO for [list next 3-5 specific part numbers]
-- Review safety stock for [specific categories]
-- Update reorder points for [specific materials]
-
-**Thursday**:
-- Receive and inspect [specific materials]
-- Update stock levels in system
-- Review [specific project] consumption rates
-
-**Friday**:
+Keep it CONCISE - use bullet points, short sentences, specific part numbers!`;
+}
 - Complete all pending POs
 - Review weekly consumption for [specific categories]
 - Plan next week's orders
