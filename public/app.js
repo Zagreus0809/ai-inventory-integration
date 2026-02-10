@@ -67,14 +67,17 @@ async function loadDashboard() {
         renderMaterialsSummary(dashboardData.groupings);
         loadRecentTransactions();
         
+        // Load materials first before AI analysis
+        await loadMaterials();
+        
         // Load AI Dashboard Analysis automatically
         console.log('[Dashboard] Loading AI analysis...');
         loadAIDashboardAnalysis();
         
         // Automatically analyze low stock if there are any
-        if (dashboardData.lowStockItems > 0) {
+        if (dashboardData.lowStockItems > 0 && materials.length > 0) {
             console.log('[Dashboard] Low stock detected, analyzing automatically...');
-            autoAnalyzeLowStock();
+            setTimeout(() => autoAnalyzeLowStock(), 2000); // Delay to ensure materials are loaded
         } else {
             const statusDiv = document.getElementById('lowStockAIStatus');
             if (statusDiv) {
