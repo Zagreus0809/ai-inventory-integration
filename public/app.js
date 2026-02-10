@@ -124,8 +124,6 @@ async function loadAIDashboardAnalysis() {
     `;
 
     // Simulate progress updates
-    const progressBar = document.getElementById('aiLoadingProgress');
-    const loadingText = document.getElementById('aiLoadingStep');
     const steps = [
         { progress: 10, text: 'Loading 50 materials...' },
         { progress: 30, text: 'Analyzing stock levels...' },
@@ -136,7 +134,10 @@ async function loadAIDashboardAnalysis() {
     
     let currentStep = 0;
     const progressInterval = setInterval(() => {
-        if (currentStep < steps.length) {
+        const progressBar = document.getElementById('aiLoadingProgress');
+        const loadingText = document.getElementById('aiLoadingStep');
+        
+        if (currentStep < steps.length && progressBar && loadingText) {
             progressBar.style.width = steps[currentStep].progress + '%';
             loadingText.textContent = steps[currentStep].text;
             currentStep++;
@@ -163,8 +164,10 @@ async function loadAIDashboardAnalysis() {
         console.log('[AI] Dashboard analysis received successfully');
 
         // Complete progress
-        progressBar.style.width = '100%';
-        loadingText.textContent = 'Analysis complete!';
+        const progressBar = document.getElementById('aiLoadingProgress');
+        const loadingText = document.getElementById('aiLoadingStep');
+        if (progressBar) progressBar.style.width = '100%';
+        if (loadingText) loadingText.textContent = 'Analysis complete!';
         
         // Wait a moment to show completion
         await new Promise(resolve => setTimeout(resolve, 500));
