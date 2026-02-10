@@ -56,10 +56,18 @@ function showSection(sectionId) {
     }
     
     // Load section-specific data
-    if (sectionId === 'materials') loadMaterials();
-    if (sectionId === 'stock-entry') loadStockEntries();
-    if (sectionId === 'material-request') loadMaterialRequests();
-    if (sectionId === 'stock-ledger') loadStockLedger();
+    if (sectionId === 'materials') {
+        if (typeof loadMaterials === 'function') loadMaterials();
+    }
+    if (sectionId === 'stock-entry') {
+        if (typeof loadStockEntries === 'function') loadStockEntries();
+    }
+    if (sectionId === 'material-request') {
+        if (typeof loadMaterialRequests === 'function') loadMaterialRequests();
+    }
+    if (sectionId === 'stock-ledger') {
+        if (typeof loadStockLedger === 'function') loadStockLedger();
+    }
 }
 
 
@@ -852,11 +860,8 @@ async function loadMaterials() {
         
         populateCategoryFilter();
         
-        // Only render table if we're on materials section
-        const materialsSection = document.getElementById('materials');
-        if (materialsSection && materialsSection.classList.contains('active')) {
-            renderMaterialsTable(materials);
-        }
+        // Always render table when called
+        renderMaterialsTable(materials);
         
         return materials;
     } catch (error) {
