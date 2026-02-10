@@ -780,203 +780,62 @@ router.post('/material-analysis', async (req, res) => {
     const categoryAvgStock = sameCategoryMaterials.length > 0 ? 
       (sameCategoryMaterials.reduce((sum, m) => sum + m.stock, 0) / sameCategoryMaterials.length).toFixed(0) : 'N/A';
     
-    const prompt = `You are analyzing a SPECIFIC material in a REAL SAP inventory system. Provide DETAILED, ACTIONABLE analysis!
+    const prompt = `Analyze material ${material.partNumber} in SAP inventory system. Be CONCISE and ACTIONABLE.
 
-## 📦 MATERIAL DETAILS
-
-### Basic Information:
-- **Part Number**: ${material.partNumber}
+## MATERIAL: ${material.partNumber}
 - **Description**: ${material.description}
-- **Project**: ${material.project}
-- **Category**: ${material.grouping}
-- **Storage Location**: ${material.storageLocation}
-
-### Stock Status:
-- **Current Stock**: ${material.stock} ${material.unit}
-- **Reorder Point**: ${material.reorderPoint} ${material.unit}
-- **Stock Level**: ${stockPercent}% of reorder point
-- **Status**: ${status}
+- **Project**: ${material.project} | **Category**: ${material.grouping}
+- **Current Stock**: ${material.stock} ${material.unit} | **Reorder Point**: ${material.reorderPoint} ${material.unit}
+- **Stock Level**: ${stockPercent}% | **Status**: ${status}
 - **Unit Price**: ₱${material.price}
 
-### Financial Metrics:
-- **Current Inventory Value**: ₱${currentValue}
-- **Reorder Point Value**: ₱${reorderValue}
-- **Recommended Order Quantity**: ${recommendedOrderQty} ${material.unit}
-- **Recommended Order Cost**: ₱${orderCost}
+## YOUR TASK: Provide SHORT, SPECIFIC analysis in this format:
 
-### Comparative Analysis:
-- **Same Category (${material.grouping})**: ${sameCategoryMaterials.length} other materials
-- **Category Average Stock**: ${categoryAvgStock} units
-- **Same Project (${material.project})**: ${sameProjectMaterials.length} other materials
+### 📊 Quick Status
+[1-2 sentences: Is this material healthy? What's the risk level?]
+
+### 🎯 Recommendation
+${material.stock <= material.reorderPoint ? 
+  `**ORDER NOW**: ${recommendedOrderQty} ${material.unit} (₱${orderCost})
+**Urgency**: ${material.stock < material.reorderPoint * 0.5 ? 'TODAY - Critical' : 'THIS WEEK - High Priority'}
+**Reason**: [Why order now? Impact on ${material.project} project]` :
+  `**NO ORDER NEEDED**: Stock is healthy
+**Next Review**: ${daysUntilReorder} days
+**Monitor**: [What to watch for]`}
+
+### 💰 Financial Impact
+- Current Value: ₱${currentValue}
+- ${material.stock <= material.reorderPoint ? `Order Cost: ₱${orderCost}` : `Reorder Value: ₱${reorderValue}`}
+- ${material.stock <= material.reorderPoint ? `Stockout Risk: ₱${(material.price * material.reorderPoint * 5).toFixed(2)}` : `Status: Healthy`}
+
+### ⚠️ Risks & Actions
+${material.stock < material.reorderPoint * 0.5 ? 
+  `**CRITICAL RISK**: ${Math.max(1, Math.floor(material.stock / (material.reorderPoint * 0.1)))} days until stockout
+**Actions**: 
+1. Create emergency PO today
+2. Contact supplier for expedited delivery
+3. Notify ${material.project} team` :
+  material.stock <= material.reorderPoint ?
+  `**MODERATE RISK**: Order this week
+**Actions**:
+1. Create PO for ${recommendedOrderQty} ${material.unit}
+2. Expected delivery: 5-7 days` :
+  `**LOW RISK**: Monitor weekly
+**Actions**:
+1. Review in ${Math.floor(daysUntilReorder / 7)} weeks
+2. Check consumption trends`}
+
+### 🔄 Optimization
+- ${material.stock <= material.reorderPoint ? `Increase reorder point to ${Math.floor(material.reorderPoint * 1.3)} ${material.unit}` : `Current reorder point adequate`}
+- Safety stock: ${Math.floor(material.reorderPoint * 0.5)} ${material.unit}
+- ${sameCategoryMaterials.length} other ${material.grouping} materials (avg: ${categoryAvgStock} units)
 
 ---
 
-## 🎯 YOUR TASK: Provide SPECIFIC analysis for ${material.partNumber}!
+**SUMMARY**: ${material.stock <= material.reorderPoint ? `⚠️ ORDER ${recommendedOrderQty} ${material.unit} (₱${orderCost}) - ${material.stock < material.reorderPoint * 0.5 ? 'TODAY' : 'THIS WEEK'}` : `✅ Healthy - Review in ${daysUntilReorder} days`}
 
-### 1. 📊 DETAILED STATUS ASSESSMENT
+Keep it SHORT and SPECIFIC!`;
 
-**Current Health:**
-- Stock level: ${material.stock} ${material.unit} (${stockPercent}% of reorder point)
-- Status: ${status}
-- Days until reorder needed: ${daysUntilReorder > 0 ? daysUntilReorder + ' days' : 'ALREADY AT/BELOW REORDER POINT'}
-- Risk Level: ${material.stock < material.reorderPoint * 0.5 ? 'HIGH - Immediate stockout risk' : material.stock <= material.reorderPoint ? 'MEDIUM - Order soon' : 'LOW - Healthy stock'}
-
-**Consumption Estimate:**
-- Assuming 10% monthly consumption of reorder point
-- Estimated monthly usage: ${(material.reorderPoint * 0.1).toFixed(0)} ${material.unit}
-- Current stock will last: ${(material.stock / (material.reorderPoint * 0.1)).toFixed(1)} months
-- ${material.stock <= material.reorderPoint ? '⚠️ BELOW SAFE LEVEL - ORDER NOW!' : '✅ Above safe level'}
-
-### 2. 💡 SPECIFIC RECOMMENDATIONS
-
-**Should We Reorder?**
-${material.stock <= material.reorderPoint ? 
-  `✅ YES - IMMEDIATE REORDER REQUIRED!\n- Current stock (${material.stock} ${material.unit}) is at/below reorder point (${material.reorderPoint} ${material.unit})\n- Order ${recommendedOrderQty} ${material.unit} to reach optimal level\n- Estimated cost: ₱${orderCost}\n- Urgency: ${material.stock < material.reorderPoint * 0.5 ? 'TODAY' : 'THIS WEEK'}` :
-  `⏸️ NOT YET - Stock is healthy\n- Current stock (${material.stock} ${material.unit}) is above reorder point (${material.reorderPoint} ${material.unit})\n- Monitor and reorder when stock reaches ${material.reorderPoint} ${material.unit}\n- Estimated ${daysUntilReorder} days until reorder needed`}
-
-**Optimal Order Quantity:**
-- Recommended: ${recommendedOrderQty > 0 ? recommendedOrderQty : material.reorderPoint * 2} ${material.unit}
-- This will bring stock to: ${material.stock + (recommendedOrderQty > 0 ? recommendedOrderQty : material.reorderPoint * 2)} ${material.unit}
-- Target: 2x reorder point = ${material.reorderPoint * 2} ${material.unit}
-- Investment required: ₱${recommendedOrderQty > 0 ? orderCost : (material.reorderPoint * 2 * material.price).toFixed(2)}
-
-**Optimal Reorder Timing:**
-${material.stock <= material.reorderPoint ? 
-  `🚨 ORDER NOW - Already at/below reorder point` :
-  `📅 Order when stock reaches ${material.reorderPoint} ${material.unit} (estimated in ${daysUntilReorder} days)`}
-
-### 3. 📈 USAGE & CONSUMPTION ANALYSIS
-
-**Project Context (${material.project}):**
-- This material is used in ${material.project} project
-- ${sameProjectMaterials.length} other materials in same project
-- ${sameProjectMaterials.filter(m => m.stock <= m.reorderPoint).length} materials in ${material.project} are also low stock
-- ${material.stock <= material.reorderPoint ? `⚠️ ${material.project} project may be impacted if not reordered` : `✅ ${material.project} project has adequate stock`}
-
-**Category Context (${material.grouping}):**
-- Category: ${material.grouping}
-- ${sameCategoryMaterials.length} other ${material.grouping} materials in system
-- Average stock in category: ${categoryAvgStock} units
-- This material is ${material.stock > parseFloat(categoryAvgStock) ? 'ABOVE' : 'BELOW'} category average
-
-**Consumption Pattern:**
-- Estimated monthly consumption: ${(material.reorderPoint * 0.1).toFixed(0)} ${material.unit}
-- Estimated quarterly consumption: ${(material.reorderPoint * 0.3).toFixed(0)} ${material.unit}
-- Current stock covers: ${(material.stock / (material.reorderPoint * 0.1)).toFixed(1)} months
-- ${material.stock < material.reorderPoint * 2 ? 'Consider increasing order frequency' : 'Current order frequency is adequate'}
-
-### 4. 💰 FINANCIAL IMPACT & COST ANALYSIS
-
-**Current Inventory Value:**
-- Stock value: ₱${currentValue} (${material.stock} ${material.unit} × ₱${material.price})
-- Reorder point value: ₱${reorderValue}
-- ${material.stock < material.reorderPoint ? `⚠️ Below target value by ₱${(reorderValue - currentValue).toFixed(2)}` : `✅ Above target value by ₱${(currentValue - reorderValue).toFixed(2)}`}
-
-**Recommended Investment:**
-- Order quantity: ${recommendedOrderQty > 0 ? recommendedOrderQty : material.reorderPoint * 2} ${material.unit}
-- Order cost: ₱${recommendedOrderQty > 0 ? orderCost : (material.reorderPoint * 2 * material.price).toFixed(2)}
-- New inventory value: ₱${(material.stock * material.price + parseFloat(recommendedOrderQty > 0 ? orderCost : (material.reorderPoint * 2 * material.price).toFixed(2))).toFixed(2)}
-
-**Cost of Stockout (if not ordered):**
-- Production delay cost: ₱${(material.price * material.reorderPoint * 5).toFixed(2)} (estimated)
-- Emergency order premium: +30% = ₱${(parseFloat(orderCost) * 1.3).toFixed(2)}
-- Opportunity cost: ₱${(material.price * material.reorderPoint * 2).toFixed(2)}
-- **Total potential loss: ₱${(material.price * material.reorderPoint * 7 + parseFloat(orderCost) * 0.3).toFixed(2)}**
-
-### 5. ⚠️ RISKS & MITIGATION
-
-**Primary Risks:**
-${material.stock < material.reorderPoint * 0.5 ? 
-  `🔴 CRITICAL STOCKOUT RISK\n- Stock is critically low (${stockPercent}% of reorder)\n- Estimated ${Math.max(1, Math.floor(material.stock / (material.reorderPoint * 0.1)))} days until stockout\n- ${material.project} project production may stop\n- Immediate action required` :
-  material.stock <= material.reorderPoint ?
-  `🟡 MODERATE STOCKOUT RISK\n- Stock is at reorder point\n- Estimated ${Math.floor(material.stock / (material.reorderPoint * 0.1))} days until critical\n- Order this week to prevent issues\n- Monitor daily` :
-  `🟢 LOW RISK\n- Stock is healthy\n- Estimated ${daysUntilReorder} days until reorder needed\n- Monitor weekly\n- No immediate action required`}
-
-**Contingency Plans:**
-1. **If supplier delays:**
-   - Check alternative suppliers for ${material.grouping}
-   - Consider temporary substitutes (if available)
-   - Adjust ${material.project} production schedule
-   - Communicate with project team
-
-2. **If demand increases:**
-   - Increase reorder point to ${Math.floor(material.reorderPoint * 1.5)} ${material.unit}
-   - Order larger quantities (3x reorder point)
-   - Implement daily monitoring
-   - Set up automatic alerts
-
-3. **If quality issues:**
-   - Have backup supplier ready
-   - Maintain 20% safety stock
-   - Implement incoming inspection
-   - Document quality requirements
-
-**Alternative Materials:**
-- Check if other ${material.grouping} materials can substitute
-- Review ${material.project} project specifications
-- Consult engineering team for alternatives
-- ${sameCategoryMaterials.length > 0 ? `${sameCategoryMaterials.length} other ${material.grouping} materials available` : 'No direct alternatives in system'}
-
-### 6. 🎯 OPTIMIZATION SUGGESTIONS
-
-**Reorder Point Optimization:**
-- Current reorder point: ${material.reorderPoint} ${material.unit}
-- ${material.stock <= material.reorderPoint ? `⚠️ Consider increasing to ${Math.floor(material.reorderPoint * 1.3)} ${material.unit} (30% higher)` : `✅ Current reorder point seems adequate`}
-- Recommended safety stock: ${Math.floor(material.reorderPoint * 0.5)} ${material.unit} (50% of reorder point)
-- Lead time buffer: ${Math.floor(material.reorderPoint * 0.2)} ${material.unit} (20% of reorder point)
-
-**Storage Location Efficiency:**
-- Current location: ${material.storageLocation}
-- ${material.stock <= material.reorderPoint ? 'Ensure easy access for quick replenishment' : 'Location is adequate'}
-- Consider proximity to ${material.project} production area
-- Optimize for FIFO (First In, First Out)
-
-**Supplier Considerations:**
-- Establish reliable supplier for ${material.partNumber}
-- Negotiate bulk pricing for orders > ${material.reorderPoint * 3} ${material.unit}
-- Set up automatic reorder with supplier
-- Maintain 2-3 backup suppliers
-- Target lead time: 5-7 days
-
-**Monitoring & Alerts:**
-- Set up automatic alert at ${material.reorderPoint} ${material.unit}
-- Set up critical alert at ${Math.floor(material.reorderPoint * 0.5)} ${material.unit}
-- ${material.stock <= material.reorderPoint ? 'Monitor DAILY until restocked' : 'Monitor WEEKLY'}
-- Review consumption monthly
-- Adjust reorder point quarterly
-
-### 7. 📋 ACTION ITEMS FOR ${material.partNumber}
-
-**Immediate (Today):**
-${material.stock < material.reorderPoint * 0.5 ? 
-  `- ✅ CREATE EMERGENCY PO for ${recommendedOrderQty} ${material.unit}\n- ✅ Contact supplier for expedited delivery\n- ✅ Notify ${material.project} project team\n- ✅ Check alternative suppliers\n- ✅ Estimated cost: ₱${orderCost}` :
-  material.stock <= material.reorderPoint ?
-  `- ✅ CREATE PO for ${recommendedOrderQty} ${material.unit}\n- ✅ Contact supplier\n- ✅ Estimated cost: ₱${orderCost}\n- ✅ Expected delivery: 5-7 days` :
-  `- ⏸️ No immediate action needed\n- 📊 Continue monitoring\n- 📅 Review in ${Math.floor(daysUntilReorder / 7)} weeks`}
-
-**This Week:**
-- Review consumption rate for ${material.partNumber}
-- Update reorder point if needed
-- Check supplier lead times
-- Verify storage location efficiency
-
-**This Month:**
-- Analyze ${material.project} project demand trends
-- Review ${material.grouping} category performance
-- Optimize order quantities
-- Update safety stock levels
-
----
-
-## 📌 SUMMARY FOR ${material.partNumber}
-
-**Status**: ${status}
-**Action Required**: ${material.stock <= material.reorderPoint ? `YES - Order ${recommendedOrderQty} ${material.unit} (₱${orderCost})` : `NO - Monitor and reorder in ${daysUntilReorder} days`}
-**Urgency**: ${material.stock < material.reorderPoint * 0.5 ? 'CRITICAL - TODAY' : material.stock <= material.reorderPoint ? 'HIGH - THIS WEEK' : 'LOW - ROUTINE MONITORING'}
-**Project Impact**: ${material.project}
-**Category**: ${material.grouping}
-
-Be specific and actionable for THIS exact material!`;
 
     const result = await model.generateContent(prompt);
     const analysis = result.response.text();
