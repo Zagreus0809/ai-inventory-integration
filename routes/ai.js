@@ -376,28 +376,6 @@ Provide analysis in this EXACT format (keep it SHORT and CLEAR):
 
 Keep it CONCISE - use bullet points, short sentences, specific part numbers!`;
 }
-- Complete all pending POs
-- Review weekly consumption for [specific categories]
-- Plan next week's orders
-
-**Weekend**:
-- Generate weekly report
-- Analyze consumption trends for [specific projects]
-
----
-
-## ⚠️ CRITICAL RULES - FOLLOW EXACTLY:
-1. ✅ USE ONLY ACTUAL PART NUMBERS from tables above (G02277700, PCB-S18, XNM-AU-00224, etc.)
-2. ✅ USE EXACT STOCK QUANTITIES with units (e.g., "2210 M", "450 PC", "45 KG")
-3. ✅ REFERENCE SPECIFIC PROJECTS (Nivio, Migne, Migne Horizontal, Migne Vertical, Common, Common Direct)
-4. ✅ CALCULATE REAL COSTS using actual prices (multiply quantity × unit price)
-5. ✅ USE EXACT CATEGORY NAMES (PCB, Cu wire, Resin, Bobbin, Cable wire, Sensor Case, Case, Ferrite, Pin header, Soldering, Supplies)
-6. ❌ NO GENERIC ADVICE like "some materials" or "several items"
-7. ❌ NO MADE-UP PART NUMBERS - only use what's in the tables
-8. ❌ NO PLACEHOLDER DATA - every number must be from actual data
-
-Format with tables, emojis, and be extremely specific!`;
-}
 
 function generateComprehensiveMockAnalysis(materials, summary) {
   const criticalItems = materials.filter(m => m.stock < m.reorderPoint * 0.5);
