@@ -568,33 +568,28 @@ function formatAIAnalysis(text) {
     
     // Apply enhanced formatting with better styling
     return formatted
-        // Main headers - large, colorful
-        .replace(/## (.*)/g, '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; border-radius: 8px; margin: 30px 0 20px 0; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);"><h3 style="margin: 0; font-size: 1.4em; font-weight: 600;">$1</h3></div>')
-        // Sub headers - clean, simple
-        .replace(/### (.*)/g, '<h4 style="color: #667eea; margin: 25px 0 15px 0; font-size: 1.2em; font-weight: 600; padding-left: 15px; border-left: 4px solid #667eea;">$1</h4>')
+        // Main headers - colorful cards with icons
+        .replace(/## 📊 (.*)/g, '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin: 25px 0 15px 0; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);"><h3 style="margin: 0; font-size: 1.5em; font-weight: 600;"><i class="fas fa-chart-bar" style="margin-right: 10px;"></i>$1</h3></div>')
+        .replace(/## 🤖 (.*)/g, '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin: 25px 0 15px 0; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);"><h3 style="margin: 0; font-size: 1.5em; font-weight: 600;"><i class="fas fa-robot" style="margin-right: 10px;"></i>$1</h3></div>')
+        .replace(/## 📈 (.*)/g, '<div style="background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); color: white; padding: 20px; border-radius: 12px; margin: 25px 0 15px 0; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);"><h3 style="margin: 0; font-size: 1.5em; font-weight: 600;"><i class="fas fa-chart-line" style="margin-right: 10px;"></i>$1</h3></div>')
+        .replace(/## 📋 (.*)/g, '<div style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white; padding: 20px; border-radius: 12px; margin: 25px 0 15px 0; box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);"><h3 style="margin: 0; font-size: 1.5em; font-weight: 600;"><i class="fas fa-clipboard-list" style="margin-right: 10px;"></i>$1</h3></div>')
+        .replace(/## 📚 (.*)/g, '<div style="background: linear-gradient(135deg, #00bcd4 0%, #0097a7 100%); color: white; padding: 20px; border-radius: 12px; margin: 25px 0 15px 0; box-shadow: 0 4px 12px rgba(0, 188, 212, 0.3);"><h3 style="margin: 0; font-size: 1.5em; font-weight: 600;"><i class="fas fa-book" style="margin-right: 10px;"></i>$1</h3></div>')
+        .replace(/## 🎯 (.*)/g, '<div style="background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%); color: white; padding: 20px; border-radius: 12px; margin: 25px 0 15px 0; box-shadow: 0 4px 12px rgba(233, 30, 99, 0.3);"><h3 style="margin: 0; font-size: 1.5em; font-weight: 600;"><i class="fas fa-bullseye" style="margin-right: 10px;"></i>$1</h3></div>')
+        .replace(/## 🚨 (.*)/g, '<div style="background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%); color: white; padding: 20px; border-radius: 12px; margin: 25px 0 15px 0; box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);"><h3 style="margin: 0; font-size: 1.5em; font-weight: 600;"><i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i>$1</h3></div>')
+        // Fallback for other headers
+        .replace(/## (.*)/g, '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin: 25px 0 15px 0; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);"><h3 style="margin: 0; font-size: 1.5em; font-weight: 600;">$1</h3></div>')
+        // Sub headers - info boxes
+        .replace(/### (.*)/g, '<div style="background: #f8f9fa; border-left: 4px solid #667eea; padding: 15px 20px; margin: 20px 0 10px 0; border-radius: 4px;"><h4 style="margin: 0; color: #667eea; font-size: 1.1em; font-weight: 600;">$1</h4></div>')
         // Bold text
-        .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: 600;">$1</strong>')
-        // Icons and emojis with better spacing
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: 600; background: #fff3cd; padding: 2px 6px; border-radius: 3px;">$1</strong>')
+        // Icons - keep existing
         .replace(/⚠️/g, '<span style="font-size: 1.3em; margin-right: 8px;">⚠️</span>')
         .replace(/✅/g, '<span style="font-size: 1.3em; margin-right: 8px;">✅</span>')
         .replace(/🔴/g, '<span style="font-size: 1.3em; margin-right: 8px;">🔴</span>')
         .replace(/🟡/g, '<span style="font-size: 1.3em; margin-right: 8px;">🟡</span>')
         .replace(/🟢/g, '<span style="font-size: 1.3em; margin-right: 8px;">🟢</span>')
-        .replace(/⬆️/g, '<i class="fas fa-arrow-up" style="color: #4caf50; margin: 0 5px;"></i>')
-        .replace(/⬇️/g, '<i class="fas fa-arrow-down" style="color: #f44336; margin: 0 5px;"></i>')
-        .replace(/⚡/g, '<i class="fas fa-bolt" style="color: #ff9800; margin: 0 5px;"></i>')
-        .replace(/🚀/g, '<i class="fas fa-rocket" style="color: #667eea; margin: 0 5px;"></i>')
-        .replace(/🎯/g, '<i class="fas fa-bullseye" style="color: #00bcd4; margin: 0 5px;"></i>')
-        .replace(/💪/g, '<i class="fas fa-hand-rock" style="color: #4caf50; margin: 0 5px;"></i>')
-        .replace(/📊/g, '<i class="fas fa-chart-bar" style="color: #667eea; margin: 0 5px;"></i>')
-        .replace(/📅/g, '<i class="fas fa-calendar" style="color: #00bcd4; margin: 0 5px;"></i>')
-        .replace(/🚨/g, '<i class="fas fa-exclamation-triangle" style="color: #f44336; margin: 0 5px;"></i>')
-        .replace(/🤖/g, '<i class="fas fa-robot" style="color: #667eea; margin: 0 5px;"></i>')
-        .replace(/💰/g, '<i class="fas fa-dollar-sign" style="color: #4caf50; margin: 0 5px;"></i>')
-        .replace(/📦/g, '<i class="fas fa-box" style="color: #667eea; margin: 0 5px;"></i>')
-        .replace(/💡/g, '<i class="fas fa-lightbulb" style="color: #ffc107; margin: 0 5px;"></i>')
-        // Paragraphs with better spacing
-        .replace(/\n\n/g, '</p><p style="line-height: 1.8; color: #555; margin: 15px 0; font-size: 1.05em;">')
+        // Paragraphs with better spacing and background
+        .replace(/\n\n/g, '</p><p style="line-height: 1.9; color: #444; margin: 15px 0; font-size: 1.05em; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">')
         .replace(/\n/g, '<br>')
         // Horizontal rules
         .replace(/---/g, '<hr style="border: none; border-top: 2px solid #e0e0e0; margin: 30px 0;">');
