@@ -353,7 +353,7 @@ Provide analysis in this format:
 [2-3 sentences about the current inventory status - what's good, what needs attention]
 
 ## 🤖 AI Insights
-[Explain what the AI system detected - anomalies, patterns, predictions, recommendations. Focus on demonstrating AI value: automated monitoring, intelligent alerts, predictive analytics, efficiency gains]
+[Explain what the AI system detected - anomalies, patterns, predictions. Focus on: automated monitoring, intelligent alerts, predictive analytics, real-time tracking, efficiency gains from AI]
 
 ## 📈 Stock Entry Summary
 [Brief overview of recent stock movements and trends]
@@ -364,10 +364,17 @@ Provide analysis in this format:
 ## 📚 Stock Ledger Summary
 [Overview of transaction history and inventory accuracy]
 
-## 🎯 Key Recommendations
-[3-5 specific actionable recommendations with part numbers]
+## 🎯 Key Recommendations - AI System Improvements
+[Provide 4-5 recommendations on how AI can IMPROVE the SAP inventory system in the future. Focus on:
+- Advanced AI features that could be added (machine learning for demand forecasting, predictive maintenance, automated reordering)
+- Integration improvements (connecting more data sources, real-time supplier integration, IoT sensors)
+- Analytics enhancements (better dashboards, custom reports, trend analysis)
+- Automation opportunities (auto-generate purchase orders, smart alerts, workflow automation)
+- System optimization (faster processing, better algorithms, enhanced user experience)
 
-Keep it clear and focused on AI-powered insights!`;
+Each recommendation should explain HOW the AI improvement would benefit the inventory management.]
+
+Keep it clear and focused on AI-powered insights and future improvements!`;
 }
 
 function generateComprehensiveMockAnalysis(materials, summary) {
