@@ -273,6 +273,11 @@ function showDemoStep() {
     const modal = document.getElementById('demoModal');
     const body = document.getElementById('demoModalBody');
     
+    if (!modal || !body) {
+        console.error('Demo modal elements not found');
+        return;
+    }
+    
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     
@@ -301,7 +306,11 @@ function showDemoStep() {
     `;
     
     if (step.action) {
-        step.action();
+        try {
+            step.action();
+        } catch (error) {
+            console.error('Demo step action error:', error);
+        }
     }
 }
 

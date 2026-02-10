@@ -24,7 +24,22 @@ function showSection(sectionId) {
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
-    event.target.closest('.nav-item').classList.add('active');
+    
+    // Only update nav if called from nav click
+    if (typeof event !== 'undefined' && event.target) {
+        const navItem = event.target.closest('.nav-item');
+        if (navItem) {
+            navItem.classList.add('active');
+        }
+    } else {
+        // Find and activate the corresponding nav item
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            if (item.getAttribute('onclick')?.includes(sectionId)) {
+                item.classList.add('active');
+            }
+        });
+    }
     
     // Load section-specific data
     if (sectionId === 'materials') loadMaterials();
