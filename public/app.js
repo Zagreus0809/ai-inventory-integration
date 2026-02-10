@@ -601,23 +601,6 @@ function formatAIAnalysis(text) {
 }
 
 // Dashboard
-async function loadDashboard() {
-    try {
-        const response = await fetch(`${API_URL}/api/analytics/dashboard`);
-        dashboardData = await response.json();
-        
-        document.getElementById('totalMaterials').textContent = dashboardData.totalMaterials;
-        document.getElementById('totalValue').textContent = `$${parseFloat(dashboardData.totalValue).toLocaleString()}`;
-        document.getElementById('lowStockItems').textContent = dashboardData.lowStockItems;
-        document.getElementById('turnoverRate').textContent = '85%';
-        
-        renderCategoryChart(dashboardData.groupings);
-        loadRecentTransactions();
-    } catch (error) {
-        console.error('Error loading dashboard:', error);
-    }
-}
-
 function renderCategoryChart(groupings) {
     const ctx = document.getElementById('categoryChart');
     if (!ctx) {
