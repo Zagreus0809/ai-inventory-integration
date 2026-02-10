@@ -9,10 +9,24 @@ const API_URL = window.location.origin;
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     console.log('[App] Initializing...');
-    loadDashboard();
-    loadMaterials();
+    initializeApp();
     setupEventListeners();
 });
+
+// Initialize app properly
+async function initializeApp() {
+    try {
+        // Load materials first
+        await loadMaterials();
+        console.log('[App] Materials loaded:', materials.length);
+        
+        // Then load dashboard
+        await loadDashboard();
+        console.log('[App] Dashboard loaded');
+    } catch (error) {
+        console.error('[App] Initialization error:', error);
+    }
+}
 
 // Navigation
 function showSection(sectionId) {
@@ -57,7 +71,6 @@ async function loadDashboard() {
         console.log('[Dashboard] Data received:', dashboardData);
         
         document.getElementById('totalMaterials').textContent = dashboardData.totalMaterials;
-        // Total value is set to ₱0 in HTML
         document.getElementById('lowStockItems').textContent = dashboardData.lowStockItems;
         document.getElementById('turnoverRate').textContent = '85%';
         
@@ -67,9 +80,6 @@ async function loadDashboard() {
         renderMaterialsSummary(dashboardData.groupings);
         loadRecentTransactions();
         
-        // Load materials first before AI analysis
-        await loadMaterials();
-        
         // Load AI Dashboard Analysis automatically
         console.log('[Dashboard] Loading AI analysis...');
         loadAIDashboardAnalysis();
@@ -77,7 +87,7 @@ async function loadDashboard() {
         // Automatically analyze low stock if there are any
         if (dashboardData.lowStockItems > 0 && materials.length > 0) {
             console.log('[Dashboard] Low stock detected, analyzing automatically...');
-            setTimeout(() => autoAnalyzeLowStock(), 2000); // Delay to ensure materials are loaded
+            setTimeout(() => autoAnalyzeLowStock(), 3000);
         } else {
             const statusDiv = document.getElementById('lowStockAIStatus');
             if (statusDiv) {
@@ -86,6 +96,7 @@ async function loadDashboard() {
         }
     } catch (error) {
         console.error('Error loading dashboard:', error);
+        alert('Error loading dashboard. Please check console for details.');
     }
 }
 
@@ -95,18 +106,26 @@ async function loadDashboard() {
 async function loadAIDashboardAnalysis() {
     const container = document.getElementById('aiDashboardSummary');
     
-    if (container) {
-        container.innerHTML = `
-            <div class="text-center py-3">
-                <div class="spinner-border text-primary mb-2" style="width: 2rem; height: 2rem;"></div>
-                <p class="text-muted mb-0">AI is analyzing your inventory...</p>
-            </div>
-        `;
+    if (!container) {
+        console.error('[AI] Dashboard summary container not found');
+        return;
     }
+    
+    container.innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary mb-2" style="width: 2rem; height: 2rem;"></div>
+            <p class="text-muted mb-0">AI is analyzing your inventory...</p>
+        </div>
+    `;
 
     try {
         console.log('[AI] Fetching dashboard analysis...');
         const response = await fetch(`${API_URL}/api/ai/dashboard-analysis`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         console.log('[AI] Dashboard analysis received:', result.success ? 'Success' : 'Failed');
 
@@ -114,30 +133,27 @@ async function loadAIDashboardAnalysis() {
         window.aiAnalysisData = result;
 
         // Show summary in card
-        if (container) {
-            const summary = result.analysis.substring(0, 200) + '...';
-            container.innerHTML = `
-                <div style="text-align: left;">
-                    <p style="margin: 0 0 15px 0; color: #666; line-height: 1.6;">${summary}</p>
-                    <button onclick="openAIModal()" class="btn btn-primary" style="width: 100%;">
-                        <i class="fas fa-eye me-2"></i>View Full AI Analysis
-                    </button>
-                </div>
-            `;
-        }
+        const summary = result.analysis.substring(0, 200) + '...';
+        container.innerHTML = `
+            <div style="text-align: left;">
+                <p style="margin: 0 0 15px 0; color: #666; line-height: 1.6;">${summary}</p>
+                <button onclick="openAIModal()" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-eye me-2"></i>View Full AI Analysis
+                </button>
+            </div>
+        `;
 
     } catch (error) {
         console.error('AI Dashboard Analysis Error:', error);
-        if (container) {
-            container.innerHTML = `
-                <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 15px; border-radius: 4px;">
-                    <p style="color: #f44336; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Analysis Failed</p>
-                    <button onclick="loadAIDashboardAnalysis()" class="btn btn-danger btn-sm">
-                        <i class="fas fa-redo"></i> Retry
-                    </button>
-                </div>
-            `;
-        }
+        container.innerHTML = `
+            <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 15px; border-radius: 4px;">
+                <p style="color: #f44336; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Analysis Failed</p>
+                <p style="color: #666; margin: 0 0 10px 0; font-size: 0.9em;">${error.message}</p>
+                <button onclick="loadAIDashboardAnalysis()" class="btn btn-danger btn-sm">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
+            </div>
+        `;
     }
 }
 
@@ -193,23 +209,35 @@ function refreshAIAnalysis() {
 }
 
 async function autoAnalyzeLowStock() {
-    const lowStockMaterials = materials.filter(m => m.stock <= m.reorderPoint);
-    
-    if (lowStockMaterials.length === 0) {
-        return;
-    }
-    
-    const statusDiv = document.getElementById('lowStockAIStatus');
-    if (statusDiv) {
-        statusDiv.innerHTML = '<i class="fas fa-robot"></i> AI analyzing low stock...';
-    }
-    
     try {
+        if (!materials || materials.length === 0) {
+            console.log('[AI] Materials not loaded yet, skipping low stock analysis');
+            return;
+        }
+        
+        const lowStockMaterials = materials.filter(m => m.stock <= m.reorderPoint);
+        
+        if (lowStockMaterials.length === 0) {
+            console.log('[AI] No low stock materials found');
+            return;
+        }
+        
+        console.log('[AI] Analyzing', lowStockMaterials.length, 'low stock materials');
+        
+        const statusDiv = document.getElementById('lowStockAIStatus');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<i class="fas fa-robot"></i> AI analyzing low stock...';
+        }
+        
         const response = await fetch(`${API_URL}/api/ai/low-stock-analysis`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ materials: lowStockMaterials })
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         
@@ -225,10 +253,13 @@ async function autoAnalyzeLowStock() {
                 </a>
             `;
         }
+        
+        console.log('[AI] Low stock analysis complete');
     } catch (error) {
         console.error('Auto Low Stock Analysis Error:', error);
+        const statusDiv = document.getElementById('lowStockAIStatus');
         if (statusDiv) {
-            statusDiv.innerHTML = '<i class="fas fa-exclamation-circle" style="color: #ff9800;"></i> Analysis failed';
+            statusDiv.innerHTML = '<i class="fas fa-exclamation-circle" style="color: #ff9800;"></i> Analysis unavailable';
         }
     }
 }
@@ -656,13 +687,27 @@ async function loadRecentTransactions() {
 // Materials
 async function loadMaterials() {
     try {
+        console.log('[Materials] Loading materials...');
         const response = await fetch(`${API_URL}/api/materials`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         materials = await response.json();
+        console.log('[Materials] Loaded:', materials.length, 'materials');
         
         populateCategoryFilter();
-        renderMaterialsTable(materials);
+        
+        // Only render table if we're on materials section
+        const materialsSection = document.getElementById('materials');
+        if (materialsSection && materialsSection.classList.contains('active')) {
+            renderMaterialsTable(materials);
+        }
+        
+        return materials;
     } catch (error) {
         console.error('Error loading materials:', error);
+        alert('Error loading materials. Please refresh the page.');
+        return [];
     }
 }
 
