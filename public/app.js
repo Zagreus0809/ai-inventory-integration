@@ -119,21 +119,28 @@ async function loadAIDashboardAnalysis() {
     `;
 
     try {
-        console.log('[AI] Fetching dashboard analysis...');
-        const response = await fetch(`${API_URL}/api/ai/dashboard-analysis`);
+        console.log('[AI] Fetching dashboard analysis from:', `${API_URL}/api/ai/dashboard-analysis`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        const response = await fetch(`${API_URL}/api/ai/dashboard-analysis`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const result = await response.json();
-        console.log('[AI] Dashboard analysis received:', result.success ? 'Success' : 'Failed');
+        console.log('[AI] Dashboard analysis received successfully');
 
         // Store the full analysis globally
         window.aiAnalysisData = result;
 
         // Show summary in card
-        const summary = result.analysis.substring(0, 200) + '...';
+        const summary = result.analysis ? result.analysis.substring(0, 200) + '...' : 'Analysis complete';
         container.innerHTML = `
             <div style="text-align: left;">
                 <p style="margin: 0 0 15px 0; color: #666; line-height: 1.6;">${summary}</p>
@@ -145,13 +152,19 @@ async function loadAIDashboardAnalysis() {
 
     } catch (error) {
         console.error('AI Dashboard Analysis Error:', error);
+        
+        let errorMessage = 'Unknown error occurred';
+        if (error.name === 'AbortError') {
+            errorMessage = 'Request timed out after 30 seconds';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
         container.innerHTML = `
-            <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 15px; border-radius: 4px;">
-                <p style="color: #f44336; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Analysis Failed</p>
-                <p style="color: #666; margin: 0 0 10px 0; font-size: 0.9em;">${error.message}</p>
-                <button onclick="loadAIDashboardAnalysis()" class="btn btn-danger btn-sm">
-                    <i class="fas fa-redo"></i> Retry
-                </button>
+            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+                <p style="color: #856404; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> AI Analysis Unavailable</p>
+                <p style="color: #666; margin: 0 0 10px 0; font-size: 0.9em;">${errorMessage}</p>
+                <p style="color: #666; margin: 0; font-size: 0.85em;">The system is working, but AI analysis is temporarily unavailable. You can still use all other features.</p>
             </div>
         `;
     }
@@ -212,6 +225,10 @@ async function autoAnalyzeLowStock() {
     try {
         if (!materials || materials.length === 0) {
             console.log('[AI] Materials not loaded yet, skipping low stock analysis');
+            const statusDiv = document.getElementById('lowStockAIStatus');
+            if (statusDiv) {
+                statusDiv.innerHTML = '<i class="fas fa-check-circle" style="color: #4caf50;"></i> All stock levels healthy';
+            }
             return;
         }
         
@@ -219,6 +236,10 @@ async function autoAnalyzeLowStock() {
         
         if (lowStockMaterials.length === 0) {
             console.log('[AI] No low stock materials found');
+            const statusDiv = document.getElementById('lowStockAIStatus');
+            if (statusDiv) {
+                statusDiv.innerHTML = '<i class="fas fa-check-circle" style="color: #4caf50;"></i> All stock levels healthy';
+            }
             return;
         }
         
@@ -229,14 +250,19 @@ async function autoAnalyzeLowStock() {
             statusDiv.innerHTML = '<i class="fas fa-robot"></i> AI analyzing low stock...';
         }
         
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
         const response = await fetch(`${API_URL}/api/ai/low-stock-analysis`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ materials: lowStockMaterials })
+            body: JSON.stringify({ materials: lowStockMaterials }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const data = await response.json();
@@ -259,7 +285,11 @@ async function autoAnalyzeLowStock() {
         console.error('Auto Low Stock Analysis Error:', error);
         const statusDiv = document.getElementById('lowStockAIStatus');
         if (statusDiv) {
-            statusDiv.innerHTML = '<i class="fas fa-exclamation-circle" style="color: #ff9800;"></i> Analysis unavailable';
+            if (error.name === 'AbortError') {
+                statusDiv.innerHTML = '<i class="fas fa-exclamation-circle" style="color: #ff9800;"></i> Analysis timed out';
+            } else {
+                statusDiv.innerHTML = '<i class="fas fa-info-circle" style="color: #2196f3;"></i> AI analysis unavailable';
+            }
         }
     }
 }
