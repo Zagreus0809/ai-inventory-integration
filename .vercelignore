@@ -1,0 +1,16 @@
+# Dependencies are installed by Vercel
+node_modules
+# Local env (use Vercel Environment Variables instead)
+.env
+.env.local
+*.log
+.DS_Store
+# Optional: exclude test/debug files from deployment
+test-*.js
+test-*.html
+*-test.js
+verify-*.js
+check-*.js
+direct-*.js
+quick-test.js
+list-models.js

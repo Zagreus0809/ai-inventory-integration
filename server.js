@@ -29,9 +29,12 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-  console.log(`SAP AI Inventory System running on port ${PORT}`);
-  console.log(`Access at: http://localhost:${PORT}`);
-});
+// Only listen when running locally (not on Vercel serverless)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`SAP AI Inventory System running on port ${PORT}`);
+    console.log(`Access at: http://localhost:${PORT}`);
+  });
+}
 
 module.exports = app;

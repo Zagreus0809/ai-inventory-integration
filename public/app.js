@@ -61,38 +61,62 @@ function showSection(sectionId) {
 
 
 
-// Dashboard
+// Dashboard (supports demo mode: uses window.demoData.dashboard when window.demoMode is true)
 async function loadDashboard() {
     try {
-        console.log('[Dashboard] Loading dashboard data...');
-        const response = await fetch(`${API_URL}/api/analytics/dashboard`);
-        dashboardData = await response.json();
+        if (window.demoMode && window.demoData && window.demoData.dashboard) {
+            dashboardData = window.demoData.dashboard;
+            console.log('[Dashboard] Using demo dashboard data');
+        } else {
+            console.log('[Dashboard] Loading dashboard data...');
+            const response = await fetch(`${API_URL}/api/analytics/dashboard`);
+            dashboardData = await response.json();
+        }
         
         console.log('[Dashboard] Data received:', dashboardData);
         
-        document.getElementById('totalMaterials').textContent = dashboardData.totalMaterials;
-        document.getElementById('lowStockItems').textContent = dashboardData.lowStockItems;
-        document.getElementById('turnoverRate').textContent = '85%';
+        // 1 DASHBOARD: Critical / Low / Over / Safety (% + material qty)
+        const metrics = dashboardData.stockMetrics || {};
+        const setMetric = (pctId, qtyId, data) => {
+            const pctEl = document.getElementById(pctId);
+            const qtyEl = document.getElementById(qtyId);
+            if (pctEl) pctEl.textContent = (data && data.pct) != null ? data.pct : '0';
+            if (qtyEl) qtyEl.textContent = (data && data.count) != null ? data.count + ' material qty' : '0 material qty';
+        };
+        setMetric('criticalPct', 'criticalQty', metrics.criticalStock);
+        setMetric('lowPct', 'lowQty', metrics.lowStock);
+        setMetric('overPct', 'overQty', metrics.overStock);
+        setMetric('safetyPct', 'safetyQty', metrics.safetyStock);
+        
+        // 2 AI Insights list (counts in labels when available)
+        const aiList = document.getElementById('aiInsightsList');
+        if (aiList) {
+            const c = (metrics.criticalStock && metrics.criticalStock.count) || 0;
+            const l = (metrics.lowStock && metrics.lowStock.count) || 0;
+            const o = (metrics.overStock && metrics.overStock.count) || 0;
+            aiList.innerHTML = `
+                <div class="ai-insight-item critical" onclick="showMaterialsPopup('critical')" role="button" tabindex="0" style="cursor: pointer;"><i class="fas fa-exclamation-circle"></i> Critical Stock (${c})</div>
+                <div class="ai-insight-item low" onclick="showMaterialsPopup('low')" role="button" tabindex="0" style="cursor: pointer;"><i class="fas fa-exclamation-triangle"></i> Low Stock (${l})</div>
+                <div class="ai-insight-item over" onclick="showMaterialsPopup('over')" role="button" tabindex="0" style="cursor: pointer;"><i class="fas fa-arrow-up"></i> Over Stock (${o})</div>
+            `;
+        }
         
         console.log('[Dashboard] Rendering charts...');
-        renderCategoryChart(dashboardData.groupings);
-        renderTrendChart(dashboardData.groupings);
-        renderMaterialsSummary(dashboardData.groupings);
+        renderCategoryChart(dashboardData.groupings || []);
+        renderTrendChart(dashboardData.groupings || []);
+        renderParetoChart();
+        renderXyzParetoChart();
+        if (dashboardData.turnoverClassification) {
+            renderTurnoverChart(dashboardData.turnoverClassification);
+        }
+        renderMaterialsSummary(dashboardData.groupings || []);
         loadRecentTransactions();
         
-        // Load AI Dashboard Analysis automatically
+        // Load AI Dashboard Analysis (runs in demo mode too so AI still analyzes the overall system)
         console.log('[Dashboard] Loading AI analysis...');
         loadAIDashboardAnalysis();
-        
-        // Automatically analyze low stock if there are any
-        if (dashboardData.lowStockItems > 0 && materials.length > 0) {
-            console.log('[Dashboard] Low stock detected, analyzing automatically...');
+        if (!window.demoMode && dashboardData.lowStockItems > 0 && materials.length > 0) {
             setTimeout(() => autoAnalyzeLowStock(), 3000);
-        } else {
-            const statusDiv = document.getElementById('lowStockAIStatus');
-            if (statusDiv) {
-                statusDiv.innerHTML = '<i class="fas fa-check-circle" style="color: #4caf50;"></i> All stock levels healthy';
-            }
         }
     } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -123,9 +147,12 @@ async function loadAIDashboardAnalysis() {
         </div>
     `;
 
-    // Simulate progress updates
+    const materialCount = (window.demoMode && window.demoData && window.demoData.materials)
+        ? window.demoData.materials.length
+        : ((typeof materials !== 'undefined' && materials.length) ? materials.length : 0);
+    const loadText = materialCount > 0 ? `Loading ${materialCount} materials...` : 'Loading inventory...';
     const steps = [
-        { progress: 10, text: 'Loading 50 materials...' },
+        { progress: 10, text: loadText },
         { progress: 30, text: 'Analyzing stock levels...' },
         { progress: 50, text: 'Detecting anomalies...' },
         { progress: 70, text: 'Calculating recommendations...' },
@@ -145,14 +172,36 @@ async function loadAIDashboardAnalysis() {
     }, 800);
 
     try {
-        console.log('[AI] Fetching dashboard analysis from:', `${API_URL}/api/ai/dashboard-analysis`);
-        
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-        
-        const response = await fetch(`${API_URL}/api/ai/dashboard-analysis`, {
-            signal: controller.signal
-        });
+
+        let response;
+        if (window.demoMode && window.demoData && window.demoData.materials && window.demoData.materials.length > 0) {
+            const demoPayload = window.demoData.materials;
+            console.log('[AI] Demo mode: sending current demo data (' + demoPayload.length + ' items) for analysis...');
+            response = await fetch(`${API_URL}/api/ai/dashboard-analysis`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ materials: demoPayload }),
+                signal: controller.signal
+            });
+            if (!response.ok) {
+                const storeRes = await fetch(`${API_URL}/api/ai/demo-materials`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ materials: demoPayload }),
+                    signal: controller.signal
+                });
+                if (storeRes.ok) {
+                    response = await fetch(`${API_URL}/api/ai/dashboard-analysis?demo=1&_=${Date.now()}`, { signal: controller.signal, cache: 'no-store' });
+                }
+            }
+        } else {
+            console.log('[AI] Fetching dashboard analysis from:', `${API_URL}/api/ai/dashboard-analysis`);
+            response = await fetch(`${API_URL}/api/ai/dashboard-analysis`, {
+                signal: controller.signal
+            });
+        }
         clearTimeout(timeoutId);
         clearInterval(progressInterval);
         
@@ -161,7 +210,7 @@ async function loadAIDashboardAnalysis() {
         }
         
         const result = await response.json();
-        console.log('[AI] Dashboard analysis received successfully');
+        console.log('[AI] Dashboard AI analysis received successfully');
 
         // Complete progress
         const progressBar = document.getElementById('aiLoadingProgress');
@@ -189,14 +238,27 @@ async function loadAIDashboardAnalysis() {
     } catch (error) {
         clearInterval(progressInterval);
         console.error('AI Dashboard Analysis Error:', error);
-        
+        if (window.demoMode && window.demoData && window.demoData.materials && window.demoData.materials.length > 0) {
+            const fallback = buildDemoModeAnalysisFallback(window.demoData.materials);
+            window.aiAnalysisData = { analysis: fallback, timestamp: new Date().toISOString(), summary: {} };
+            const summary = fallback.substring(0, 200) + '...';
+            container.innerHTML = `
+                <div style="text-align: left;">
+                    <p style="margin: 0 0 15px 0; color: #666; line-height: 1.6;">${summary}</p>
+                    <p style="font-size: 0.85em; color: #999;">(Analysis of current demo data — server AI unavailable)</p>
+                    <button onclick="openAIModal()" class="btn btn-primary" style="width: 100%; margin-top: 8px;">
+                        <i class="fas fa-eye me-2"></i>View Full Analysis
+                    </button>
+                </div>
+            `;
+            return;
+        }
         let errorMessage = 'Unknown error occurred';
         if (error.name === 'AbortError') {
             errorMessage = 'Request timed out after 30 seconds';
         } else if (error.message) {
             errorMessage = error.message;
         }
-        
         container.innerHTML = `
             <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
                 <p style="color: #856404; margin: 0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> AI Analysis Unavailable</p>
@@ -205,6 +267,43 @@ async function loadAIDashboardAnalysis() {
             </div>
         `;
     }
+}
+
+function buildDemoModeAnalysisFallback(mats) {
+    const totalValue = mats.reduce((s, m) => s + (m.stock || 0) * (m.price || 0), 0);
+    const critical = mats.filter(m => m.stock <= (m.reorderPoint || 0));
+    const low = mats.filter(m => (m.reorderPoint || 0) < m.stock && m.stock <= (m.reorderPoint || 0) * 1.5);
+    const over = mats.filter(m => m.stock > (m.reorderPoint || 0) * 3);
+    const safety = mats.filter(m => (m.reorderPoint || 0) * 1.5 < m.stock && m.stock <= (m.reorderPoint || 0) * 3);
+    const byGroup = {};
+    mats.forEach(m => {
+        const g = m.grouping || 'Other';
+        if (!byGroup[g]) byGroup[g] = { count: 0, low: 0 };
+        byGroup[g].count++;
+        if (m.stock <= (m.reorderPoint || 0)) byGroup[g].low++;
+    });
+    let groupText = Object.entries(byGroup).map(([g, o]) => `${g}: ${o.count} items (${o.low} low/critical)`).join('; ');
+    const topCritical = critical.slice(0, 5).map(m => `${m.partNumber || m.id}: ${m.stock} / ${m.reorderPoint} ${m.unit || ''}`).join('\n');
+    return `## Demo mode – inventory analysis (current data)
+
+**Total materials:** ${mats.length}  |  **Total value:** ₱${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+
+### Stock status
+- **Critical (at or below reorder):** ${critical.length} items
+- **Low stock:** ${low.length} items
+- **Safety band:** ${safety.length} items
+- **Over stock:** ${over.length} items
+
+### By category
+${groupText}
+
+### Items needing attention (sample)
+${topCritical || 'None'}
+
+### Recommendations
+${critical.length > 0 ? `• Reorder or transfer stock for ${critical.length} critical item(s) to avoid stockouts.` : ''}
+${over.length > 0 ? `• Review ${over.length} over-stocked item(s) for possible redistribution or reduced orders.` : ''}
+• Use the Materials view and filters to drill down by category or ABC/XYZ class.`;
 }
 
 function openAIModal() {
@@ -643,40 +742,46 @@ function renderTrendChart(groupings) {
         console.error('[Chart] trendChart canvas not found');
         return;
     }
-    
-    console.log('[Chart] Rendering trend chart with', groupings.length, 'groupings');
-    
-    // Destroy existing chart if it exists
+    if (!groupings || groupings.length === 0) return;
     if (window.trendChartInstance) {
         window.trendChartInstance.destroy();
     }
-    
-    // Create stock level data
+    const mats = (typeof materials !== 'undefined' && materials.length) ? materials : [];
     const labels = groupings.map(g => g.grouping);
-    const stockData = groupings.map(g => g.totalStock);
-    const lowStockData = groupings.map(g => g.lowStock);
-    
-    console.log('[Chart] Stock data:', stockData);
-    console.log('[Chart] Low stock data:', lowStockData);
-    
+    const totalStockData = groupings.map(g => g.totalStock || 0);
+    const lowStockData = groupings.map(g => g.lowStock || 0);
+    const overStockData = groupings.map(g => {
+        const grp = g.grouping;
+        return mats.filter(m => m.grouping === grp && m.stock > (m.reorderPoint || 0) * 3).length;
+    });
     window.trendChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: labels,
+            labels,
             datasets: [
                 {
-                    label: 'Total Stock',
-                    data: stockData,
-                    backgroundColor: '#667eea',
+                    label: 'Total Stock (qty)',
+                    data: totalStockData,
+                    backgroundColor: 'rgba(102, 126, 234, 0.8)',
                     borderColor: '#667eea',
-                    borderWidth: 1
+                    borderWidth: 1,
+                    yAxisID: 'y'
                 },
                 {
-                    label: 'Low Stock Items',
+                    label: 'Low Stock (items count)',
                     data: lowStockData,
-                    backgroundColor: '#f5576c',
+                    backgroundColor: 'rgba(245, 87, 108, 0.8)',
                     borderColor: '#f5576c',
-                    borderWidth: 1
+                    borderWidth: 1,
+                    yAxisID: 'y1'
+                },
+                {
+                    label: 'Over Stock (items count)',
+                    data: overStockData,
+                    backgroundColor: 'rgba(255, 152, 0, 0.8)',
+                    borderColor: '#ff9800',
+                    borderWidth: 1,
+                    yAxisID: 'y1'
                 }
             ]
         },
@@ -685,18 +790,369 @@ function renderTrendChart(groupings) {
             maintainAspectRatio: true,
             scales: {
                 y: {
-                    beginAtZero: true
+                    type: 'linear',
+                    position: 'left',
+                    beginAtZero: true,
+                    title: { display: true, text: 'Total Stock (quantity)' },
+                    grid: { drawOnChartArea: true }
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    beginAtZero: true,
+                    title: { display: true, text: 'Item count (Low / Over)' },
+                    grid: { drawOnChartArea: false }
                 }
             },
             plugins: {
-                legend: {
-                    position: 'bottom'
+                legend: { position: 'bottom' },
+                tooltip: { mode: 'index', intersect: false }
+            }
+        }
+    });
+    console.log('[Chart] Stock level trends chart rendered successfully');
+}
+
+// ABC Pareto chart: 3 bars only — A (high value), B (medium), C (low). Line = cumulative %.
+function renderParetoChart() {
+    const ctx = document.getElementById('paretoChart');
+    if (!ctx) return;
+    if (window.paretoChartInstance) {
+        window.paretoChartInstance.destroy();
+        window.paretoChartInstance = null;
+    }
+    const mats = (typeof materials !== 'undefined' && materials.length) ? materials : [];
+    const withValue = mats
+        .map(m => ({ ...m, value: (m.stock || 0) * (m.price || 0) }))
+        .filter(m => m.value > 0)
+        .sort((a, b) => b.value - a.value);
+    const totalValue = withValue.reduce((sum, m) => sum + m.value, 0);
+    if (withValue.length === 0 || totalValue === 0) return;
+    let cum = 0;
+    const abc = { A: { value: 0, count: 0 }, B: { value: 0, count: 0 }, C: { value: 0, count: 0 } };
+    withValue.forEach(m => {
+        cum += m.value;
+        const pct = (cum / totalValue) * 100;
+        const cls = pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C';
+        m.abc = cls;
+        abc[cls].value += m.value;
+        abc[cls].count++;
+    });
+    const labels = ['A (High value)', 'B (Medium value)', 'C (Low value)'];
+    const values = [abc.A.value, abc.B.value, abc.C.value];
+    const barColors = ['rgba(76, 175, 80, 0.85)', 'rgba(255, 152, 0, 0.85)', 'rgba(244, 67, 54, 0.85)'];
+    const barBorderColors = ['#4caf50', '#ff9800', '#f44336'];
+    let cumLine = 0;
+    const cumulativePct = values.map(v => {
+        cumLine += v;
+        return ((cumLine / totalValue) * 100).toFixed(1);
+    }).map(Number);
+    const legendEl = document.getElementById('paretoLegend');
+    if (legendEl) {
+        legendEl.innerHTML = `
+            <strong>A</strong>: ${abc.A.count} items = ${((abc.A.value / totalValue) * 100).toFixed(1)}% value &nbsp;|&nbsp;
+            <strong>B</strong>: ${abc.B.count} items = ${((abc.B.value / totalValue) * 100).toFixed(1)}% value &nbsp;|&nbsp;
+            <strong>C</strong>: ${abc.C.count} items = ${((abc.C.value / totalValue) * 100).toFixed(1)}% value
+        `;
+    }
+    window.paretoChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Value (₱)',
+                    data: values,
+                    backgroundColor: barColors,
+                    borderColor: barBorderColors,
+                    borderWidth: 1,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Cumulative %',
+                    data: cumulativePct,
+                    type: 'line',
+                    borderColor: '#5c6bc0',
+                    backgroundColor: 'rgba(92, 107, 192, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    beginAtZero: true,
+                    title: { display: true, text: 'Value (₱)' }
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    min: 0,
+                    max: 100,
+                    title: { display: true, text: 'Cumulative %' },
+                    grid: { drawOnChartArea: false },
+                    ticks: { callback: v => v + '%' }
+                }
+            },
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function (c) {
+                            if (c.dataset.yAxisID === 'y1')
+                                return 'Cumulative %: ' + c.raw + '%';
+                            const cls = ['A', 'B', 'C'][c.dataIndex];
+                            return 'Class ' + cls + ' — ₱' + (c.raw || 0).toLocaleString() + ' (' + abc[cls].count + ' items)';
+                        }
+                    }
                 }
             }
         }
     });
-    
-    console.log('[Chart] Trend chart rendered successfully');
+    console.log('[Chart] ABC Pareto chart (3 bars: A/B/C) rendered successfully');
+}
+
+// XYZ Pareto chart: bars = value by demand class (X, Y, Z), line = cumulative % of value. Classic Pareto style.
+function renderXyzParetoChart() {
+    const ctx = document.getElementById('xyzParetoChart');
+    if (!ctx) return;
+    if (window.xyzParetoChartInstance) {
+        window.xyzParetoChartInstance.destroy();
+        window.xyzParetoChartInstance = null;
+    }
+    const mats = (typeof materials !== 'undefined' && materials.length) ? materials : [];
+    const ratio = m => (m.reorderPoint > 0 ? (m.stock / m.reorderPoint) : 0);
+    const xyz = m => {
+        const r = ratio(m);
+        if (r >= 2 && r <= 4) return 'X';
+        if (r > 1 && r < 2) return 'Y';
+        return 'Z';
+    };
+    const xyzValue = { X: 0, Y: 0, Z: 0 };
+    const xyzCount = { X: 0, Y: 0, Z: 0 };
+    mats.forEach(m => {
+        const v = (m.stock || 0) * (m.price || 0);
+        const cls = xyz(m);
+        xyzValue[cls] += v;
+        xyzCount[cls]++;
+    });
+    const totalValue = xyzValue.X + xyzValue.Y + xyzValue.Z;
+    if (totalValue === 0) return;
+    const order = ['X', 'Y', 'Z'];
+    const labels = order.map(c => (c === 'X' ? 'X (Stable)' : c === 'Y' ? 'Y (Moderate)' : 'Z (Irregular)'));
+    const values = order.map(c => xyzValue[c]);
+    let cum = 0;
+    const cumulativePct = values.map(v => {
+        cum += v;
+        return ((cum / totalValue) * 100).toFixed(1);
+    }).map(Number);
+    const legendEl = document.getElementById('xyzParetoLegend');
+    if (legendEl) {
+        const pctPerClass = order.map((c, i) => (totalValue ? ((xyzValue[c] / totalValue) * 100).toFixed(1) : 0));
+        const parts = order.map((c, i) => `${c}: ${xyzCount[c]} items = ${pctPerClass[i]}% of value`).join('  |  ');
+        legendEl.innerHTML = '<strong>' + parts + '</strong>';
+    }
+    window.xyzParetoChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Value (₱)',
+                    data: values,
+                    backgroundColor: ['#2196f3', '#ff9800', '#9e9e9e'],
+                    borderColor: ['#1976d2', '#f57c00', '#616161'],
+                    borderWidth: 1,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Cumulative %',
+                    data: cumulativePct,
+                    type: 'line',
+                    borderColor: '#e91e63',
+                    backgroundColor: 'rgba(233, 30, 99, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.2,
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    beginAtZero: true,
+                    title: { display: true, text: 'Value (₱)' }
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    min: 0,
+                    max: 100,
+                    title: { display: true, text: 'Cumulative %' },
+                    grid: { drawOnChartArea: false },
+                    ticks: { callback: v => v + '%' }
+                }
+            },
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function (c) {
+                            if (c.dataset.yAxisID === 'y1')
+                                return 'Cumulative %: ' + c.raw + '%';
+                            return 'Value: ₱' + (c.raw || 0).toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+    console.log('[Chart] XYZ Pareto chart rendered successfully');
+}
+
+// Turnover classification bar chart (Class A, B, C)
+function renderTurnoverChart(turnoverData) {
+    const ctx = document.getElementById('turnoverChart');
+    if (!ctx || !turnoverData || !turnoverData.byClass) return;
+    if (window.turnoverChartInstance) {
+        window.turnoverChartInstance.destroy();
+    }
+    const byClass = turnoverData.byClass;
+    window.turnoverChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Class A', 'Class B', 'Class C'],
+            datasets: [
+                { label: 'Fast-Moving', data: [byClass.A?.fast || 0, byClass.B?.fast || 0, byClass.C?.fast || 0], backgroundColor: '#4caf50' },
+                { label: 'Slow-Moving', data: [byClass.A?.slow || 0, byClass.B?.slow || 0, byClass.C?.slow || 0], backgroundColor: '#ff9800' },
+                { label: 'Non-Moving', data: [byClass.A?.non || 0, byClass.B?.non || 0, byClass.C?.non || 0], backgroundColor: '#f44336' }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: { y: { beginAtZero: true } },
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+}
+
+function filterByCategory(cat) {
+    window.paretoFilter = cat;
+    showSection('materials');
+    setTimeout(() => {
+        if (document.getElementById('categoryFilter')) filterMaterials();
+    }, 300);
+}
+
+function getMaterialsFilteredByType(type) {
+    const mats = (typeof materials !== 'undefined' && materials.length) ? materials : [];
+    const r = type.toLowerCase();
+    if (r === 'critical') return mats.filter(m => (m.stock || 0) <= (m.reorderPoint || 0));
+    if (r === 'low') return mats.filter(m => (m.reorderPoint || 0) < (m.stock || 0) && (m.stock || 0) <= (m.reorderPoint || 0) * 1.5);
+    if (r === 'over') return mats.filter(m => (m.stock || 0) > (m.reorderPoint || 0) * 3);
+    if (r === 'safety') return mats.filter(m => (m.reorderPoint || 0) * 1.5 < (m.stock || 0) && (m.stock || 0) <= (m.reorderPoint || 0) * 3);
+    if (['a', 'b', 'c', 'x', 'y', 'z'].includes(r)) {
+        const withValue = mats.map(m => ({ ...m, totalValue: (m.stock || 0) * (m.price || 0) })).sort((a, b) => b.totalValue - a.totalValue);
+        const totalVal = withValue.reduce((s, m) => s + m.totalValue, 0);
+        let cum = 0;
+        const abc = {};
+        withValue.forEach(m => {
+            cum += m.totalValue;
+            const pct = totalVal ? (cum / totalVal) * 100 : 0;
+            abc[m.id] = pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C';
+        });
+        const ratio = m => (m.reorderPoint > 0 ? (m.stock / m.reorderPoint) : 0);
+        const xyz = m => {
+            const rp = ratio(m);
+            if (rp >= 2 && rp <= 4) return 'X';
+            if (rp > 1 && rp < 2) return 'Y';
+            return 'Z';
+        };
+        const cls = r.toUpperCase();
+        if (['A', 'B', 'C'].includes(cls)) return mats.filter(m => abc[m.id] === cls);
+        return mats.filter(m => xyz(m) === cls);
+    }
+    return mats;
+}
+
+function showMaterialsPopup(type) {
+    const list = getMaterialsFilteredByType(type);
+    const titles = {
+        critical: 'Critical Stock',
+        low: 'Low Stock',
+        over: 'Over Stock',
+        safety: 'Safety Stock',
+        A: 'Class A (High Value Items)',
+        B: 'Class B (Medium Value Items)',
+        C: 'Class C (Low Value Items)',
+        X: 'Class X (Stable Demand)',
+        Y: 'Class Y (Moderate or Seasonal)',
+        Z: 'Class Z (Irregular)'
+    };
+    const title = titles[type] || type;
+    const titleEl = document.getElementById('materialsListModalTitle');
+    const bodyEl = document.getElementById('materialsListModalBody');
+    const modal = document.getElementById('materialsListModal');
+    if (!titleEl || !bodyEl || !modal) return;
+    titleEl.innerHTML = `<i class="fas fa-boxes"></i> ${title} (${list.length} materials)`;
+    if (list.length === 0) {
+        bodyEl.innerHTML = '<p class="text-muted">No materials in this category.</p>';
+    } else {
+        const html = `
+            <table class="table table-sm table-striped" style="font-size: 0.9em;">
+                <thead><tr>
+                    <th>Part #</th><th>Description</th><th>Grouping</th><th>Stock</th><th>Reorder</th><th>Unit</th><th>Status</th>
+                </tr></thead>
+                <tbody>
+                    ${list.map(m => {
+                        const rp = m.reorderPoint || 0;
+                        const st = m.stock || 0;
+                        const status = st <= rp ? 'Critical' : st <= rp * 1.5 ? 'Low' : st > rp * 3 ? 'Over' : 'Safety';
+                        const statusClass = status === 'Critical' ? 'text-danger' : status === 'Low' ? 'text-warning' : status === 'Over' ? 'text-info' : 'text-success';
+                        return `<tr>
+                            <td><strong>${(m.partNumber || m.id || '').toString()}</strong></td>
+                            <td>${(m.description || '').toString().substring(0, 40)}</td>
+                            <td>${(m.grouping || '').toString()}</td>
+                            <td>${st.toLocaleString()}</td>
+                            <td>${rp.toLocaleString()}</td>
+                            <td>${(m.unit || '').toString()}</td>
+                            <td><span class="${statusClass}">${status}</span></td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+        bodyEl.innerHTML = html;
+    }
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeMaterialsListModal() {
+    const modal = document.getElementById('materialsListModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
 }
 
 function renderMaterialsSummary(groupings) {
@@ -801,25 +1257,26 @@ async function loadRecentTransactions() {
     }
 }
 
-// Materials
+// Materials (supports demo mode: uses window.demoData.materials when window.demoMode is true)
 async function loadMaterials() {
     try {
-        console.log('[Materials] Loading materials...');
-        const response = await fetch(`${API_URL}/api/materials`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        if (window.demoMode && window.demoData && window.demoData.materials) {
+            materials = window.demoData.materials;
+            console.log('[Materials] Using demo materials:', materials.length);
+        } else {
+            console.log('[Materials] Loading materials...');
+            const response = await fetch(`${API_URL}/api/materials`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            materials = await response.json();
         }
-        materials = await response.json();
-        console.log('[Materials] Loaded:', materials.length, 'materials');
         
+        console.log('[Materials] Loaded:', materials.length, 'materials');
         populateCategoryFilter();
         
-        // Only render table if we're on materials section
         const materialsSection = document.getElementById('materials');
         if (materialsSection && materialsSection.classList.contains('active')) {
             renderMaterialsTable(materials);
         }
-        
         return materials;
     } catch (error) {
         console.error('Error loading materials:', error);
@@ -894,9 +1351,10 @@ function renderMaterialsTable(data) {
 }
 
 function filterMaterials() {
-    const grouping = document.getElementById('categoryFilter').value;
-    const search = document.getElementById('materialSearch').value.toLowerCase();
-    const lowStockOnly = document.getElementById('lowStockFilter').checked;
+    const grouping = document.getElementById('categoryFilter')?.value || '';
+    const search = (document.getElementById('materialSearch')?.value || '').toLowerCase();
+    const lowStockOnly = document.getElementById('lowStockFilter')?.checked || false;
+    const pareto = window.paretoFilter;
     
     let filtered = materials;
     
@@ -914,6 +1372,32 @@ function filterMaterials() {
     
     if (lowStockOnly) {
         filtered = filtered.filter(m => m.stock <= m.reorderPoint);
+    }
+    
+    // Pareto filter (ABC = value class, XYZ = demand/turnover class)
+    if (pareto && ['A','B','C','X','Y','Z'].includes(pareto)) {
+        const withValue = materials.map(m => ({ ...m, totalValue: (m.stock || 0) * (m.price || 0) })).sort((a, b) => b.totalValue - a.totalValue);
+        const totalVal = withValue.reduce((s, m) => s + m.totalValue, 0);
+        let cum = 0;
+        const abc = {};
+        withValue.forEach(m => {
+            cum += m.totalValue;
+            const pct = totalVal ? (cum / totalVal) * 100 : 0;
+            abc[m.id] = pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C';
+        });
+        const ratio = m => (m.reorderPoint > 0 ? (m.stock / m.reorderPoint) : 0);
+        const xyz = m => {
+            const r = ratio(m);
+            if (r >= 2 && r <= 4) return 'X';
+            if (r > 1 && r < 2) return 'Y';
+            return 'Z';
+        };
+        if (['A','B','C'].includes(pareto)) {
+            filtered = filtered.filter(m => abc[m.id] === pareto);
+        } else {
+            filtered = filtered.filter(m => xyz(m) === pareto);
+        }
+        window.paretoFilter = null; // clear after one use so normal filter works
     }
     
     renderMaterialsTable(filtered);
@@ -1076,31 +1560,27 @@ let stockEntries = [];
 
 async function loadStockEntries() {
     try {
-        const response = await fetch(`${API_URL}/api/stock-entry`);
-        stockEntries = await response.json();
-        
-        // Merge with demo data if exists
-        const demoEntries = JSON.parse(localStorage.getItem('demoStockEntries') || '[]');
-        if (demoEntries.length > 0) {
-            // Convert demo entries to match expected format
-            const formattedDemoEntries = demoEntries.map(entry => ({
-                id: entry.id,
-                entryType: entry.entryType,
-                date: entry.date,
-                items: [{
-                    partNumber: entry.partNumber,
-                    description: entry.description,
-                    quantity: entry.quantity,
-                    unit: entry.unit
-                }],
-                sourceWarehouse: entry.direction === 'OUT' ? entry.warehouse : '-',
-                targetWarehouse: entry.direction === 'IN' ? entry.warehouse : '-',
-                totalAmount: parseFloat(entry.cost),
-                status: entry.status
-            }));
-            stockEntries = [...formattedDemoEntries, ...stockEntries];
+        if (window.demoMode && window.demoData && window.demoData.stockEntries) {
+            stockEntries = window.demoData.stockEntries;
+            console.log('[Stock Entry] Using demo stock entries:', stockEntries.length);
+        } else {
+            const response = await fetch(`${API_URL}/api/stock-entry`);
+            stockEntries = await response.json();
+            const demoEntries = JSON.parse(localStorage.getItem('demoStockEntries') || '[]');
+            if (demoEntries.length > 0) {
+                const formattedDemoEntries = demoEntries.map(entry => ({
+                    id: entry.id,
+                    entryType: entry.entryType,
+                    date: entry.date,
+                    items: [{ partNumber: entry.partNumber, description: entry.description, quantity: entry.quantity, unit: entry.unit }],
+                    sourceWarehouse: entry.direction === 'OUT' ? entry.warehouse : '-',
+                    targetWarehouse: entry.direction === 'IN' ? entry.warehouse : '-',
+                    totalAmount: parseFloat(entry.cost),
+                    status: entry.status
+                }));
+                stockEntries = [...formattedDemoEntries, ...stockEntries];
+            }
         }
-        
         renderStockEntriesTable(stockEntries);
     } catch (error) {
         console.error('Error loading stock entries:', error);
@@ -1344,31 +1824,29 @@ let materialRequests = [];
 
 async function loadMaterialRequests() {
     try {
-        const response = await fetch(`${API_URL}/api/material-request`);
-        materialRequests = await response.json();
-        
-        // Merge with demo data if exists
-        const demoRequests = JSON.parse(localStorage.getItem('demoMaterialRequests') || '[]');
-        if (demoRequests.length > 0) {
-            // Convert demo requests to match expected format
-            const formattedDemoRequests = demoRequests.map(req => ({
-                id: req.id,
-                requestType: req.requestType,
-                date: req.createdDate,
-                items: [{
-                    partNumber: req.partNumber,
-                    description: req.description,
-                    quantity: req.quantity,
-                    unit: req.unit
-                }],
-                requiredDate: req.requiredDate,
-                status: req.status,
-                totalAmount: parseFloat(req.estimatedCost),
-                project: req.project
-            }));
-            materialRequests = [...formattedDemoRequests, ...materialRequests];
+        if (window.demoMode && window.demoData && window.demoData.materialRequests) {
+            materialRequests = window.demoData.materialRequests;
+            console.log('[Material Request] Using demo material requests:', materialRequests.length);
+        } else {
+            const response = await fetch(`${API_URL}/api/material-request`);
+            materialRequests = await response.json();
+            const demoRequests = JSON.parse(localStorage.getItem('demoMaterialRequests') || '[]');
+            if (demoRequests.length > 0) {
+                const formattedDemoRequests = demoRequests.map(req => ({
+                    id: req.id,
+                    requestType: req.requestType,
+                    date: req.createdDate,
+                    items: [{ partNumber: req.partNumber, description: req.description, quantity: req.quantity, unit: req.unit }],
+                    requiredDate: req.requiredDate,
+                    requiredBy: req.requiredDate,
+                    status: req.status,
+                    totalAmount: parseFloat(req.estimatedCost),
+                    project: req.project,
+                    requestedBy: 'Demo User'
+                }));
+                materialRequests = [...formattedDemoRequests, ...materialRequests];
+            }
         }
-        
         renderMaterialRequestsTable(materialRequests);
     } catch (error) {
         console.error('Error loading material requests:', error);
@@ -1592,15 +2070,15 @@ let stockLedger = [];
 
 async function loadStockLedger() {
     try {
-        const response = await fetch(`${API_URL}/api/stock-entry/ledger`);
-        stockLedger = await response.json();
-        
-        // Merge with demo data if exists
-        const demoLedger = JSON.parse(localStorage.getItem('demoStockLedger') || '[]');
-        if (demoLedger.length > 0) {
-            stockLedger = [...demoLedger, ...stockLedger];
+        if (window.demoMode && window.demoData && window.demoData.stockLedger) {
+            stockLedger = window.demoData.stockLedger;
+            console.log('[Stock Ledger] Using demo ledger:', stockLedger.length);
+        } else {
+            const response = await fetch(`${API_URL}/api/stock-entry/ledger`);
+            stockLedger = await response.json();
+            const demoLedger = JSON.parse(localStorage.getItem('demoStockLedger') || '[]');
+            if (demoLedger.length > 0) stockLedger = [...demoLedger, ...stockLedger];
         }
-        
         renderStockLedgerTable(stockLedger);
         updateLedgerStats();
     } catch (error) {

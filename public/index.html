@@ -9,6 +9,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <!-- Demo mode banner (shown when demo is running) -->
+    <div id="demoModeBanner" class="demo-mode-banner" style="display: none;">
+        <span><i class="fas fa-play-circle"></i> Demo mode is running — all data is simulated and affects the entire system.</span>
+        <button onclick="stopDemo()" class="btn btn-secondary btn-sm" style="margin-left: 16px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.5);">
+            <i class="fas fa-stop"></i> Stop Demo
+        </button>
+    </div>
     <!-- Header -->
     <header class="header">
         <div class="header-left">
@@ -18,8 +25,8 @@
             </div>
         </div>
         <div class="header-right">
-            <button onclick="startDemo()" class="btn btn-primary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
-                <i class="fas fa-play-circle"></i> AI Demo
+            <button id="aiDemoBtn" onclick="toggleDemo()" class="btn btn-primary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
+                <i class="fas fa-play-circle"></i> <span id="aiDemoBtnText">AI Demo</span>
             </button>
         </div>
     </header>
@@ -52,7 +59,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        <!-- Dashboard Section -->
+        <!-- Dashboard Section (SAP AI Inventory format: 4 sections per reference) -->
         <section id="dashboard" class="content-section active">
             <div class="section-header">
                 <h1>Dashboard</h1>
@@ -63,69 +70,121 @@
                 </div>
             </div>
 
-            <!-- KPI Cards -->
-            <div class="kpi-grid">
-                <div class="kpi-card">
-                    <div class="kpi-icon blue">
-                        <i class="fas fa-boxes"></i>
-                    </div>
+            <!-- 1 DASHBOARD: Critical / Low / Over / Safety (% + material qty) -->
+            <div class="dashboard-section-label">1 DASHBOARD</div>
+            <div class="kpi-grid kpi-grid-4">
+                <div class="kpi-card kpi-critical" onclick="showMaterialsPopup('critical')" role="button" tabindex="0" title="Click to view materials" style="cursor: pointer;">
+                    <div class="kpi-icon red"><i class="fas fa-exclamation-circle"></i></div>
                     <div class="kpi-content">
-                        <h3 id="totalMaterials">0</h3>
-                        <p>Total Materials</p>
+                        <h3><span id="criticalPct">0</span>%</h3>
+                        <p>Critical Stock</p>
+                        <span id="criticalQty" class="kpi-qty">0 material qty</span>
                     </div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon green">
-                        <i class="fas fa-peso-sign"></i>
-                    </div>
+                <div class="kpi-card kpi-low" onclick="showMaterialsPopup('low')" role="button" tabindex="0" title="Click to view materials" style="cursor: pointer;">
+                    <div class="kpi-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
                     <div class="kpi-content">
-                        <h3>₱0</h3>
-                        <p>Total Value</p>
+                        <h3><span id="lowPct">0</span>%</h3>
+                        <p>Low Stock</p>
+                        <span id="lowQty" class="kpi-qty">0 material qty</span>
                     </div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon red">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
+                <div class="kpi-card kpi-over" onclick="showMaterialsPopup('over')" role="button" tabindex="0" title="Click to view materials" style="cursor: pointer;">
+                    <div class="kpi-icon purple"><i class="fas fa-arrow-up"></i></div>
                     <div class="kpi-content">
-                        <h3 id="lowStockItems">0</h3>
-                        <p>Low Stock Items</p>
-                        <div id="lowStockAIStatus" class="mt-2" style="font-size: 0.75em; color: #666;">
-                            <i class="fas fa-robot"></i> AI analyzing...
-                        </div>
+                        <h3><span id="overPct">0</span>%</h3>
+                        <p>Over Stock</p>
+                        <span id="overQty" class="kpi-qty">0 material qty</span>
                     </div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon purple">
-                        <i class="fas fa-sync-alt"></i>
-                    </div>
+                <div class="kpi-card kpi-safety" onclick="showMaterialsPopup('safety')" role="button" tabindex="0" title="Click to view materials" style="cursor: pointer;">
+                    <div class="kpi-icon green"><i class="fas fa-shield-alt"></i></div>
                     <div class="kpi-content">
-                        <h3 id="turnoverRate">0%</h3>
-                        <p>Turnover Rate</p>
+                        <h3><span id="safetyPct">0</span>%</h3>
+                        <p>Safety Stock</p>
+                        <span id="safetyQty" class="kpi-qty">0 material qty</span>
                     </div>
                 </div>
             </div>
 
-            <!-- AI Dashboard Analysis Section -->
-            <div class="card mt-4">
-                <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
-                    <div>
-                        <h5 class="mb-0" style="color: white;">
-                            <i class="fas fa-robot me-2"></i>
-                            AI-Powered Inventory Insights
-                        </h5>
-                        <small style="opacity: 0.9;">Click to view comprehensive AI analysis</small>
-                    </div>
+            <!-- 2 AI INSIGHTS -->
+            <div class="dashboard-section-label">2 AI INSIGHTS</div>
+            <div class="card ai-insights-card">
+                <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                    <h5 class="mb-0" style="color: white;"><i class="fas fa-robot me-2"></i>AI-Powered Inventory Insights</h5>
                 </div>
                 <div class="card-body p-3">
-                    <div id="aiDashboardSummary" class="text-center py-3">
+                    <div id="aiInsightsList" class="ai-insights-list">
+                        <div class="ai-insight-item critical" onclick="showMaterialsPopup('critical')" role="button" tabindex="0" style="cursor: pointer;"><i class="fas fa-exclamation-circle"></i> Critical Stock</div>
+                        <div class="ai-insight-item low" onclick="showMaterialsPopup('low')" role="button" tabindex="0" style="cursor: pointer;"><i class="fas fa-exclamation-triangle"></i> Low Stock</div>
+                        <div class="ai-insight-item over" onclick="showMaterialsPopup('over')" role="button" tabindex="0" style="cursor: pointer;"><i class="fas fa-arrow-up"></i> Over Stock</div>
+                    </div>
+                    <div id="aiDashboardSummary" class="text-center py-3 mt-2">
                         <div class="spinner-border text-primary mb-2" style="width: 2rem; height: 2rem;"></div>
                         <p class="text-muted mb-0">AI is analyzing your inventory...</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Charts Row -->
+            <!-- 3 Inventory Trend by Material Category (Pareto: A/B/C, X/Y/Z) -->
+            <div class="dashboard-section-label">3 Inventory Trend by Material Category</div>
+            <div class="card pareto-card">
+                <div class="pareto-chart-label">ABC Pareto chart</div>
+                <div class="chart-card" style="margin-bottom: 20px;">
+                    <p class="mb-2" style="font-size: 0.9em; color: #555;">Three bars: A = high value items, B = medium, C = low. Line = cumulative % of total value.</p>
+                    <canvas id="paretoChart" style="max-height: 300px;"></canvas>
+                    <div id="paretoLegend" class="mt-2" style="font-size: 0.85em; color: #555;"></div>
+                </div>
+                <div class="pareto-chart-label">XYZ Pareto chart</div>
+                <div class="chart-card" style="margin-bottom: 20px;">
+                    <p class="mb-2" style="font-size: 0.9em; color: #555;">Value by demand class (X = stable, Y = moderate, Z = irregular). Bars = value; line = cumulative %.</p>
+                    <canvas id="xyzParetoChart" style="max-height: 260px;"></canvas>
+                    <div id="xyzParetoLegend" class="mt-2" style="font-size: 0.85em; color: #555;"></div>
+                </div>
+                <div class="pareto-chart-label" style="margin-top: 8px;">Click to view materials by ABC/XYZ class</div>
+                <div class="pareto-grid">
+                    <button type="button" class="pareto-box pareto-a" onclick="showMaterialsPopup('A')" title="High Value Items">
+                        <span class="pareto-title">A</span>
+                        <span class="pareto-desc">(High Value Items)</span>
+                    </button>
+                    <button type="button" class="pareto-box pareto-b" onclick="showMaterialsPopup('B')" title="Medium Value Items">
+                        <span class="pareto-title">B</span>
+                        <span class="pareto-desc">(Medium Value Items)</span>
+                    </button>
+                    <button type="button" class="pareto-box pareto-c" onclick="showMaterialsPopup('C')" title="Low Value Items">
+                        <span class="pareto-title">C</span>
+                        <span class="pareto-desc">(Low Value Items)</span>
+                    </button>
+                    <button type="button" class="pareto-box pareto-x" onclick="showMaterialsPopup('X')" title="Stable Demand">
+                        <span class="pareto-title">X</span>
+                        <span class="pareto-desc">(Stable Demand)</span>
+                    </button>
+                    <button type="button" class="pareto-box pareto-y" onclick="showMaterialsPopup('Y')" title="Moderate or Seasonal">
+                        <span class="pareto-title">Y</span>
+                        <span class="pareto-desc">(Moderate or Seasonal)</span>
+                    </button>
+                    <button type="button" class="pareto-box pareto-z" onclick="showMaterialsPopup('Z')" title="Irregular">
+                        <span class="pareto-title">Z</span>
+                        <span class="pareto-desc">(Irregular)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4 INVENTORY TURNOVER CLASSIFICATION (Bar charts for Class A, B, C) -->
+            <div class="dashboard-section-label">4 INVENTORY TURNOVER CLASSIFICATION</div>
+            <div class="turnover-row">
+                <div class="turnover-legend">
+                    <div class="turnover-legend-item"><span class="dot fast"></span> Fast-Moving Items</div>
+                    <div class="turnover-legend-item"><span class="dot slow"></span> Slow-Moving Items</div>
+                    <div class="turnover-legend-item"><span class="dot non"></span> Non-Moving Items</div>
+                </div>
+                <div class="chart-card turnover-chart-wrap">
+                    <h3>Turnover by Class (A, B, C)</h3>
+                    <canvas id="turnoverChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Legacy charts (grouping + trend) -->
             <div class="charts-row">
                 <div class="chart-card">
                     <h3>Inventory by Grouping</h3>
@@ -343,6 +402,18 @@
             </div>
             <div class="ai-modal-body" id="demoModalBody" style="padding: 30px;">
                 <!-- Demo content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Materials list popup (Critical / Low / Over / Safety / ABC / XYZ) -->
+    <div id="materialsListModal" class="ai-modal" style="display: none;">
+        <div class="ai-modal-content" style="max-width: 900px;">
+            <div class="ai-modal-header" style="background: #37474f; color: white;">
+                <h2 id="materialsListModalTitle"><i class="fas fa-boxes"></i> Materials</h2>
+                <button onclick="closeMaterialsListModal()" class="ai-modal-close" style="color: white;">&times;</button>
+            </div>
+            <div class="ai-modal-body" id="materialsListModalBody" style="padding: 20px; max-height: 70vh; overflow: auto;">
             </div>
         </div>
     </div>

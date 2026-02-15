@@ -903,3 +903,170 @@ tr:hover {
 .ai-modal-body::-webkit-scrollbar-thumb:hover {
     background: #764ba2;
 }
+
+/* Demo mode banner */
+.demo-mode-banner {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    z-index: 999;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.demo-mode-banner .btn-sm:hover {
+    background: rgba(255,255,255,0.3) !important;
+}
+body.demo-mode-active .main-content {
+    margin-top: calc(var(--header-height) + 48px);
+}
+body.demo-mode-active .sidebar {
+    top: calc(var(--header-height) + 48px);
+    height: calc(100vh - var(--header-height) - 48px);
+}
+
+/* Dashboard format (SAP AI Inventory reference) */
+.dashboard-section-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.kpi-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 900px) {
+    .kpi-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+.kpi-qty {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 4px;
+}
+.kpi-icon.orange { background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); }
+
+/* AI Insights list (Section 2) */
+.ai-insights-card .card-body { display: flex; flex-direction: column; }
+.ai-insights-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+.ai-insight-item {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+}
+.ai-insight-item.critical { background: #ffebee; color: #c62828; }
+.ai-insight-item.low { background: #fff3e0; color: #e65100; }
+.ai-insight-item.over { background: #e8eaf6; color: #3949ab; }
+
+/* Pareto section (Section 3) */
+.pareto-card {
+    position: relative;
+    padding-top: 36px;
+}
+.pareto-chart-label {
+    position: absolute;
+    top: 12px;
+    left: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+.pareto-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+@media (max-width: 700px) {
+    .pareto-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.pareto-box {
+    background: #e3f2fd;
+    border: 2px solid #2196f3;
+    border-radius: 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    font-size: 14px;
+}
+.pareto-box:hover {
+    background: #bbdefb;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+.pareto-box .pareto-title { font-weight: 700; font-size: 18px; color: #1565c0; }
+.pareto-box .pareto-desc { color: #666; font-size: 12px; margin-top: 4px; }
+.pareto-box.pareto-b { background: #f3e5f5; border-color: #9c27b0; }
+.pareto-box.pareto-b:hover { background: #e1bee7; }
+.pareto-box.pareto-b .pareto-title { color: #7b1fa2; }
+.pareto-box.pareto-c { background: #e8f5e9; border-color: #4caf50; }
+.pareto-box.pareto-c:hover { background: #c8e6c9; }
+.pareto-box.pareto-c .pareto-title { color: #2e7d32; }
+.pareto-box.pareto-x { background: #fff8e1; border-color: #ffc107; }
+.pareto-box.pareto-x:hover { background: #ffecb3; }
+.pareto-box.pareto-x .pareto-title { color: #f57f17; }
+.pareto-box.pareto-y { background: #fce4ec; border-color: #e91e63; }
+.pareto-box.pareto-y:hover { background: #f8bbd9; }
+.pareto-box.pareto-y .pareto-title { color: #c2185b; }
+.pareto-box.pareto-z { background: #eceff1; border-color: #607d8b; }
+.pareto-box.pareto-z:hover { background: #cfd8dc; }
+.pareto-box.pareto-z .pareto-title { color: #455a64; }
+
+/* Turnover section (Section 4) */
+.turnover-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+.turnover-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 20px;
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    min-width: 200px;
+}
+.turnover-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+.turnover-legend-item .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+.turnover-legend-item .dot.fast { background: #4caf50; }
+.turnover-legend-item .dot.slow { background: #ff9800; }
+.turnover-legend-item .dot.non { background: #f44336; }
+.turnover-chart-wrap {
+    flex: 1;
+    min-width: 280px;
+}
+.turnover-chart-wrap h3 {
+    margin-bottom: 16px;
+    font-size: 18px;
+}

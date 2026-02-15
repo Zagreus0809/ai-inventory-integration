@@ -1,69 +1,266 @@
-// Demo Mode - Auto-generate transactions and trigger AI analysis
+// Demo Mode - Real demo that affects ALL system functions (dashboard, materials, stock entry, material request, ledger)
 let demoRunning = false;
 
-async function startDemo() {
-    if (demoRunning) {
-        alert('Demo is already running!');
-        return;
-    }
-    
-    if (!confirm('Demo Mode will generate stock entries, material requests, and stock ledger transactions based on the 50 materials. Continue?')) {
-        return;
-    }
-    
-    demoRunning = true;
-    
-    // Show loading indicator
-    const demoBtn = document.querySelector('[onclick="startDemo()"]');
-    if (demoBtn) {
-        demoBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Demo Data...';
-        demoBtn.disabled = true;
-    }
-    
-    try {
-        console.log('[Demo] Starting demo mode...');
-        
-        // Generate all transactions in background
-        await generateDemoData();
-        
-        // Refresh dashboard to show new data
-        console.log('[Demo] Refreshing dashboard...');
-        await loadDashboard();
-        
-        // Trigger AI analysis
-        console.log('[Demo] Triggering AI analysis...');
-        setTimeout(() => {
-            loadAIDashboardAnalysis();
-            if (materials.filter(m => m.stock <= m.reorderPoint).length > 0) {
-                setTimeout(() => autoAnalyzeLowStock(), 2000);
-            }
-        }, 1000);
-        
-        alert('✅ Demo data generated! Stock entries, material requests, and stock ledger have been populated. AI is analyzing now.');
-        
-    } catch (error) {
-        console.error('[Demo] Error:', error);
-        alert('Demo generation failed: ' + error.message);
-    } finally {
-        demoRunning = false;
-        if (demoBtn) {
-            demoBtn.innerHTML = '<i class="fas fa-play"></i> Demo Mode';
-            demoBtn.disabled = false;
-        }
+function toggleDemo() {
+    if (window.demoMode) {
+        stopDemo();
+    } else {
+        startDemo();
     }
 }
 
+function startDemo() {
+    if (demoRunning) {
+        alert('Demo is already starting. Please wait.');
+        return;
+    }
+    if (!confirm('Start AI Demo? Demo mode will run the system with simulated data — dashboard, materials, stock entries, material requests, and stock ledger will all show demo data. You can stop demo anytime.')) {
+        return;
+    }
+    demoRunning = true;
+    const demoBtn = document.getElementById('aiDemoBtn');
+    const demoBtnText = document.getElementById('aiDemoBtnText');
+    if (demoBtn) {
+        demoBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span id="aiDemoBtnText">Starting...</span>';
+        demoBtn.onclick = null;
+        demoBtn.setAttribute('onclick', 'toggleDemo()');
+    }
+    try {
+        console.log('[Demo] Starting real demo mode...');
+        const baseMats = (typeof materials !== 'undefined' && materials.length) ? materials.map(m => ({ ...m })) : null;
+        if (baseMats && baseMats.length) {
+            runDemoWithMaterials(baseMats);
+        } else {
+            fetch(window.location.origin + '/api/materials').then(r => r.json()).then(mats => {
+                runDemoWithMaterials(mats && mats.length ? mats : []);
+            }).catch(() => {
+                demoRunning = false;
+                if (demoBtn) demoBtn.innerHTML = '<i class="fas fa-play-circle"></i> <span id="aiDemoBtnText">AI Demo</span>';
+                alert('Could not load materials. Try refreshing the page first.');
+            });
+        }
+    } catch (e) {
+        console.error('[Demo] Error:', e);
+        demoRunning = false;
+        if (demoBtn) demoBtn.innerHTML = '<i class="fas fa-play-circle"></i> <span id="aiDemoBtnText">AI Demo</span>';
+    }
+}
+
+function runDemoWithMaterials(baseMats) {
+    const mats = (baseMats && baseMats.length) ? baseMats.map(m => ({ ...m })) : [];
+    const total = mats.length;
+    for (let i = 0; i < total; i++) {
+        const m = mats[i];
+        const rp = m.reorderPoint || 1;
+        const r = Math.random();
+        if (r < 0.2) {
+            m.stock = Math.floor(rp * (0.3 + Math.random() * 0.4));
+        } else if (r < 0.45) {
+            m.stock = Math.floor(rp * (1.0 + Math.random() * 0.5));
+        } else if (r < 0.65) {
+            m.stock = Math.floor(rp * (3 + Math.random() * 2.5));
+        } else {
+            m.stock = Math.floor(rp * (1.5 + Math.random() * 1.0));
+        }
+        if (m.stock < 0) m.stock = 0;
+    }
+    const demoMaterials = mats;
+    const dashboard = buildDashboardFromMaterials(demoMaterials);
+    const stockEntries = generateDemoStockEntriesForDemo(demoMaterials);
+    const materialRequests = generateDemoMaterialRequestsForDemo(demoMaterials);
+    const stockLedger = generateDemoStockLedgerForDemo(demoMaterials);
+    window.demoMode = true;
+    window.demoData = {
+        materials: demoMaterials,
+        dashboard,
+        stockEntries,
+        materialRequests,
+        stockLedger
+    };
+    demoRunning = false;
+    document.getElementById('demoModeBanner').style.display = 'flex';
+    document.body.classList.add('demo-mode-active');
+    const demoBtn = document.getElementById('aiDemoBtn');
+    const demoBtnText = document.getElementById('aiDemoBtnText');
+    if (demoBtn) {
+        demoBtn.innerHTML = '<i class="fas fa-stop"></i> <span id="aiDemoBtnText">Stop Demo</span>';
+        demoBtn.setAttribute('onclick', 'toggleDemo()');
+    }
+    materials = demoMaterials;
+    loadDashboard();
+    loadMaterials();
+    loadStockEntries();
+    loadMaterialRequests();
+    loadStockLedger();
+    console.log('[Demo] Demo mode is running. All functions use demo data.');
+}
+
+function buildDashboardFromMaterials(mats) {
+    const totalMaterials = mats.length;
+    const totalValue = mats.reduce((sum, m) => sum + (m.stock * (m.price || 0)), 0);
+    const criticalStock = mats.filter(m => m.stock <= m.reorderPoint);
+    const lowStock = mats.filter(m => m.stock > m.reorderPoint && m.stock <= m.reorderPoint * 1.5);
+    const overStock = mats.filter(m => m.stock > m.reorderPoint * 3);
+    const safetyStock = mats.filter(m => m.stock > m.reorderPoint * 1.5 && m.stock <= m.reorderPoint * 3);
+    const groupings = [...new Set(mats.map(m => m.grouping))];
+    const groupingBreakdown = groupings.map(grp => {
+        const groupMaterials = mats.filter(m => m.grouping === grp);
+        return {
+            grouping: grp,
+            count: groupMaterials.length,
+            totalStock: groupMaterials.reduce((sum, m) => sum + m.stock, 0),
+            lowStock: groupMaterials.filter(m => m.stock <= m.reorderPoint).length,
+            value: groupMaterials.reduce((sum, m) => sum + (m.stock * (m.price || 0)), 0)
+        };
+    });
+    const materialsWithValue = mats.map(m => ({ ...m, totalValue: m.stock * (m.price || 0) })).sort((a, b) => b.totalValue - a.totalValue);
+    const totalVal = materialsWithValue.reduce((sum, m) => sum + m.totalValue, 0);
+    let cumulative = 0;
+    const abcMap = {};
+    materialsWithValue.forEach(m => {
+        cumulative += m.totalValue;
+        const pct = totalVal ? (cumulative / totalVal) * 100 : 0;
+        abcMap[m.id] = pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C';
+    });
+    const turnoverData = mats.map(m => {
+        const ratio = m.reorderPoint > 0 ? m.stock / m.reorderPoint : 0;
+        let xyz = 'Z';
+        if (ratio >= 2 && ratio <= 4) xyz = 'X';
+        else if (ratio > 1 && ratio < 2) xyz = 'Y';
+        return { ...m, abc: abcMap[m.id] || 'C', xyz, turnover: ratio };
+    });
+    const byClass = { A: { fast: 0, slow: 0, non: 0 }, B: { fast: 0, slow: 0, non: 0 }, C: { fast: 0, slow: 0, non: 0 } };
+    turnoverData.forEach(m => {
+        const key = m.turnover >= 2 && m.turnover <= 4 ? 'fast' : m.turnover > 1 && m.turnover < 2 ? 'slow' : 'non';
+        byClass[m.abc][key]++;
+    });
+    return {
+        totalMaterials,
+        totalValue: totalValue.toFixed(2),
+        lowStockItems: criticalStock.length,
+        stockMetrics: {
+            criticalStock: { count: criticalStock.length, pct: totalMaterials ? ((criticalStock.length / totalMaterials) * 100).toFixed(1) : 0 },
+            lowStock: { count: lowStock.length, pct: totalMaterials ? ((lowStock.length / totalMaterials) * 100).toFixed(1) : 0 },
+            overStock: { count: overStock.length, pct: totalMaterials ? ((overStock.length / totalMaterials) * 100).toFixed(1) : 0 },
+            safetyStock: { count: safetyStock.length, pct: totalMaterials ? ((safetyStock.length / totalMaterials) * 100).toFixed(1) : 0 }
+        },
+        turnoverClassification: {
+            fastMoving: turnoverData.filter(m => m.turnover >= 2 && m.turnover <= 4).length,
+            slowMoving: turnoverData.filter(m => m.turnover > 1 && m.turnover < 2).length,
+            nonMoving: turnoverData.filter(m => m.turnover <= 1 || m.turnover > 4).length,
+            byClass
+        },
+        groupings: groupingBreakdown,
+        lastUpdated: new Date().toISOString()
+    };
+}
+
+function generateDemoStockEntriesForDemo(demoMaterials) {
+    const entryTypes = [
+        { type: 'Material Receipt', direction: 'IN' },
+        { type: 'Material Issue', direction: 'OUT' },
+        { type: 'Material Transfer', direction: 'TRANSFER' },
+        { type: 'Material Consumption', direction: 'OUT' }
+    ];
+    const warehouses = ['Main Warehouse', 'Production Floor', 'Quality Control', 'Finished Goods'];
+    const entries = [];
+    const count = Math.min(20, demoMaterials.length);
+    for (let i = 0; i < count; i++) {
+        const material = demoMaterials[Math.floor(Math.random() * demoMaterials.length)];
+        const entryType = entryTypes[Math.floor(Math.random() * entryTypes.length)];
+        const qty = Math.floor(Math.random() * 200) + 50;
+        const warehouse = warehouses[Math.floor(Math.random() * warehouses.length)];
+        entries.push({
+            id: `SE-DEMO-${Date.now()}-${i}`,
+            entryType: entryType.type,
+            direction: entryType.direction,
+            date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+            items: [{ partNumber: material.partNumber, description: material.description, quantity: qty, unit: material.unit }],
+            sourceWarehouse: entryType.direction === 'OUT' ? warehouse : '-',
+            targetWarehouse: entryType.direction === 'IN' ? warehouse : '-',
+            totalAmount: qty * (material.price || 0),
+            status: 'Submitted'
+        });
+    }
+    return entries;
+}
+
+function generateDemoMaterialRequestsForDemo(demoMaterials) {
+    const lowStock = demoMaterials.filter(m => m.stock <= m.reorderPoint);
+    const requestTypes = ['Purchase', 'Material Transfer', 'Material Issue', 'Manufacture'];
+    const statuses = ['Pending', 'Approved', 'Ordered'];
+    const requests = [];
+    for (let i = 0; i < Math.min(lowStock.length, 12); i++) {
+        const material = lowStock[i];
+        const orderQty = Math.max(material.reorderPoint * 2 - material.stock, 10);
+        requests.push({
+            id: `MR-DEMO-${Date.now()}-${i}`,
+            requestType: requestTypes[i % requestTypes.length],
+            date: new Date(Date.now() - Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString(),
+            requiredDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            requiredBy: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            items: [{ partNumber: material.partNumber, description: material.description, quantity: Math.ceil(orderQty), unit: material.unit }],
+            status: statuses[i % statuses.length],
+            totalAmount: orderQty * (material.price || 0),
+            project: material.project,
+            requestedBy: 'Demo User'
+        });
+    }
+    return requests;
+}
+
+function generateDemoStockLedgerForDemo(demoMaterials) {
+    const ledger = [];
+    const warehouses = ['Main Warehouse', 'Production Floor', 'Quality Control'];
+    const selected = demoMaterials.slice(0, 25);
+    selected.forEach(m => {
+        const numTx = Math.floor(Math.random() * 5) + 3;
+        let balance = m.stock;
+        for (let i = 0; i < numTx; i++) {
+            const isIn = Math.random() > 0.5;
+            const qty = Math.floor(Math.random() * 80) + 20;
+            const change = isIn ? qty : -qty;
+            balance += change;
+            ledger.push({
+                id: `LE-DEMO-${m.id}-${i}`,
+                date: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+                voucherNo: `${isIn ? 'SE-IN' : 'SE-OUT'}-${Math.floor(Math.random() * 10000)}`,
+                partNumber: m.partNumber,
+                materialId: m.id,
+                warehouse: warehouses[Math.floor(Math.random() * warehouses.length)],
+                entryType: isIn ? 'IN' : 'OUT',
+                quantityChange: change,
+                quantity: Math.abs(change),
+                balance: Math.max(balance, 0)
+            });
+        }
+    });
+    ledger.sort((a, b) => new Date(b.date) - new Date(a.date));
+    return ledger;
+}
+
+function stopDemo() {
+    window.demoMode = false;
+    window.demoData = null;
+    document.getElementById('demoModeBanner').style.display = 'none';
+    document.body.classList.remove('demo-mode-active');
+    const demoBtn = document.getElementById('aiDemoBtn');
+    if (demoBtn) {
+        demoBtn.innerHTML = '<i class="fas fa-play-circle"></i> <span id="aiDemoBtnText">AI Demo</span>';
+        demoBtn.setAttribute('onclick', 'toggleDemo()');
+    }
+    loadMaterials();
+    loadDashboard();
+    loadStockEntries();
+    loadMaterialRequests();
+    loadStockLedger();
+    console.log('[Demo] Demo mode stopped. Using live data.');
+}
+
 async function generateDemoData() {
-    console.log('[Demo] Generating stock entries...');
     await generateDemoStockEntries();
-    
-    console.log('[Demo] Generating material requests...');
     await generateDemoMaterialRequests();
-    
-    console.log('[Demo] Generating stock ledger...');
     await generateDemoStockLedger();
-    
-    console.log('[Demo] All demo data generated successfully');
 }
 
 async function generateDemoStockEntries() {

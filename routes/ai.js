@@ -217,44 +217,99 @@ Provide specific, implementable recommendations with expected ROI and impact.`;
   }
 });
 
+// In-memory store for demo materials (so we can analyze via GET when POST to dashboard-analysis isn't available)
+let demoMaterialsStore = null;
+
+// POST: store demo materials so GET ?demo=1 can use them (for hosts that only allow GET on dashboard-analysis)
+router.post('/demo-materials', (req, res) => {
+  const materials = req.body.materials;
+  if (!materials || !Array.isArray(materials)) {
+    return res.status(400).json({ error: 'Send { materials: [...] }' });
+  }
+  demoMaterialsStore = materials.slice();
+  console.log('[AI] Demo materials stored for analysis:', demoMaterialsStore.length, 'items');
+  res.json({ ok: true, count: materials.length });
+});
+
+// Helper: build summary and lists from a materials array (used by GET and POST). Works with any material count; no 50 limit.
+function buildSummaryFromMaterials(materials) {
+  const totalStock = materials.reduce((sum, m) => sum + (m.stock ?? 0), 0);
+  const totalValue = materials.reduce((sum, m) => sum + ((m.stock ?? 0) * (m.price ?? 0)), 0);
+  const lowStockItems = materials.filter(m => (m.stock ?? 0) <= (m.reorderPoint ?? 0));
+  const criticalItems = materials.filter(m => (m.stock ?? 0) < (m.reorderPoint ?? 0) * 0.5);
+  const healthyItems = materials.filter(m => (m.stock ?? 0) > (m.reorderPoint ?? 0) * 2);
+  const groupings = {};
+  materials.forEach(m => {
+    const grp = (m.grouping && String(m.grouping)) || 'Other';
+    if (!groupings[grp]) groupings[grp] = { count: 0, totalStock: 0, totalValue: 0, lowStock: 0 };
+    groupings[grp].count++;
+    groupings[grp].totalStock += (m.stock ?? 0);
+    groupings[grp].totalValue += (m.stock ?? 0) * (m.price ?? 0);
+    if ((m.stock ?? 0) <= (m.reorderPoint ?? 0)) groupings[grp].lowStock++;
+  });
+  const summary = {
+    totalMaterials: materials.length,
+    totalStock,
+    totalValue: totalValue.toFixed(2),
+    criticalItems: criticalItems.length,
+    lowStockItems: lowStockItems.length,
+    healthyItems: healthyItems.length,
+    groupings: Object.keys(groupings).map(key => ({ grouping: key, ...groupings[key] }))
+  };
+  return { materials, summary, criticalItems, lowStockItems };
+}
+
 // ============================================
 // COMPREHENSIVE DASHBOARD AI ANALYSIS
 // Analyzes ALL inventory at once for dashboard
+// GET = server data; POST = body.materials (e.g. demo mode)
 // ============================================
 router.get('/dashboard-analysis', async (req, res) => {
+  const useDemo = req.query.demo === '1' && demoMaterialsStore && demoMaterialsStore.length > 0;
   try {
-    const materials = require('../data/materials');
-    
-    // Calculate comprehensive statistics
-    const totalStock = materials.reduce((sum, m) => sum + m.stock, 0);
-    const totalValue = materials.reduce((sum, m) => sum + (m.stock * m.price), 0);
-    const lowStockItems = materials.filter(m => m.stock <= m.reorderPoint);
-    const criticalItems = materials.filter(m => m.stock < m.reorderPoint * 0.5);
-    const healthyItems = materials.filter(m => m.stock > m.reorderPoint * 2);
-    
-    // Group by category
-    const groupings = {};
-    materials.forEach(m => {
-      if (!groupings[m.grouping]) {
-        groupings[m.grouping] = { count: 0, totalStock: 0, totalValue: 0, lowStock: 0 };
-      }
-      groupings[m.grouping].count++;
-      groupings[m.grouping].totalStock += m.stock;
-      groupings[m.grouping].totalValue += m.stock * m.price;
-      if (m.stock <= m.reorderPoint) groupings[m.grouping].lowStock++;
+    const materials = useDemo ? demoMaterialsStore : require('../data/materials');
+    if (useDemo) console.log('[AI] Using stored demo materials for analysis:', materials.length, 'items');
+    const { materials: mats, summary, criticalItems, lowStockItems } = buildSummaryFromMaterials(materials);
+    if (!process.env.GEMINI_API_KEY) {
+      return res.json({
+        success: true,
+        analysis: generateComprehensiveMockAnalysis(mats, summary),
+        timestamp: new Date().toISOString(),
+        summary,
+        isMock: true,
+        reason: 'GEMINI_API_KEY not configured'
+      });
+    }
+    const prompt = buildComprehensiveDashboardPrompt(mats, summary, criticalItems, lowStockItems);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    console.log('[AI] Generating comprehensive dashboard analysis...');
+    const result = await model.generateContent(prompt);
+    const analysis = result.response.text();
+    console.log('[AI] Dashboard analysis complete');
+    res.json({ success: true, analysis, timestamp: new Date().toISOString(), summary, isMock: false });
+  } catch (error) {
+    console.error('Dashboard Analysis Error:', error.message);
+    const fallbackMaterials = useDemo ? demoMaterialsStore : require('../data/materials');
+    const { summary } = buildSummaryFromMaterials(fallbackMaterials);
+    res.json({
+      success: true,
+      analysis: generateComprehensiveMockAnalysis(fallbackMaterials, summary),
+      timestamp: new Date().toISOString(),
+      summary,
+      error: error.message,
+      isMock: true
     });
-    
-    const summary = {
-      totalMaterials: materials.length,
-      totalStock,
-      totalValue: totalValue.toFixed(2),
-      criticalItems: criticalItems.length,
-      lowStockItems: lowStockItems.length,
-      healthyItems: healthyItems.length,
-      groupings: Object.keys(groupings).map(key => ({ grouping: key, ...groupings[key] }))
-    };
-    
-    // Check if Gemini API is available
+  }
+});
+
+// POST: analyze materials from body (e.g. demo mode — analyze current/demo data)
+router.post('/dashboard-analysis', async (req, res) => {
+  try {
+    const materials = req.body.materials;
+    if (!materials || !Array.isArray(materials) || materials.length === 0) {
+      return res.status(400).json({ error: 'No materials array provided. Send { materials: [...] }.' });
+    }
+    const { summary, criticalItems, lowStockItems } = buildSummaryFromMaterials(materials);
     if (!process.env.GEMINI_API_KEY) {
       return res.json({
         success: true,
@@ -265,33 +320,18 @@ router.get('/dashboard-analysis', async (req, res) => {
         reason: 'GEMINI_API_KEY not configured'
       });
     }
-
-    // Build comprehensive prompt
     const prompt = buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lowStockItems);
-
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-    console.log('[AI] Generating comprehensive dashboard analysis...');
+    console.log('[AI] Generating dashboard analysis for provided materials (e.g. demo)...');
     const result = await model.generateContent(prompt);
     const analysis = result.response.text();
-    console.log('[AI] Dashboard analysis complete');
-
-    res.json({
-      success: true,
-      analysis,
-      timestamp: new Date().toISOString(),
-      summary,
-      isMock: false
-    });
-
+    res.json({ success: true, analysis, timestamp: new Date().toISOString(), summary, isMock: false });
   } catch (error) {
-    console.error('Dashboard Analysis Error:', error.message);
-    const materials = require('../data/materials');
-    const summary = { totalMaterials: materials.length };
-    
+    console.error('Dashboard Analysis POST Error:', error.message);
+    const summary = req.body.materials?.length ? buildSummaryFromMaterials(req.body.materials).summary : { totalMaterials: 0 };
     res.json({
       success: true,
-      analysis: generateComprehensiveMockAnalysis(materials, summary),
+      analysis: generateComprehensiveMockAnalysis(req.body.materials || [], summary),
       timestamp: new Date().toISOString(),
       summary,
       error: error.message,
@@ -301,34 +341,36 @@ router.get('/dashboard-analysis', async (req, res) => {
 });
 
 function buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lowStockItems) {
-  // Build detailed critical items table with ALL information
-  const criticalTable = criticalItems.slice(0, 10).map(item => 
-    `| ${item.partNumber} | ${item.description.substring(0, 40)} | ${item.stock} ${item.unit} | ${item.reorderPoint} ${item.unit} | ${item.grouping} | ${item.project} | ₱${item.price} | ₱${(item.reorderPoint * 2 * item.price).toFixed(2)} |`
+  const totalCount = summary.totalMaterials || materials.length;
+  const maxSample = 25;
+  const criticalSample = criticalItems.slice(0, Math.min(maxSample, criticalItems.length));
+  const lowStockSample = lowStockItems.slice(0, Math.min(maxSample, lowStockItems.length));
+  const healthyItems = materials.filter(m => m.stock > (m.reorderPoint || 0) * 2);
+  const healthySample = healthyItems.slice(0, Math.min(15, healthyItems.length));
+
+  const criticalTable = criticalSample.map(item =>
+    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 40)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${(item.grouping || '').toString()} | ${(item.project || '').toString()} | ₱${(item.price || 0)} | ₱${((item.reorderPoint || 0) * 2 * (item.price || 0)).toFixed(2)} |`
   ).join('\n');
 
-  // Get ALL low stock materials with complete details
-  const lowStockTable = lowStockItems.slice(0, 15).map(item => 
-    `| ${item.partNumber} | ${item.description.substring(0, 35)} | ${item.stock} ${item.unit} | ${item.reorderPoint} ${item.unit} | ${item.project} | ${item.grouping} | ₱${((item.reorderPoint * 2 - item.stock) * item.price).toFixed(2)} |`
+  const lowStockTable = lowStockSample.map(item =>
+    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 35)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${(item.project || '').toString()} | ${(item.grouping || '').toString()} | ₱${(((item.reorderPoint || 0) * 2 - (item.stock || 0)) * (item.price || 0)).toFixed(2)} |`
   ).join('\n');
 
-  // Get healthy items for comparison
-  const healthyItems = materials.filter(m => m.stock > m.reorderPoint * 2).slice(0, 5);
-  const healthyTable = healthyItems.map(item =>
-    `| ${item.partNumber} | ${item.description.substring(0, 35)} | ${item.stock} ${item.unit} | ${item.reorderPoint} ${item.unit} | ${item.project} | ${item.grouping} |`
+  const healthyTable = healthySample.map(item =>
+    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 35)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${(item.project || '').toString()} | ${(item.grouping || '').toString()} |`
   ).join('\n');
 
-  // Calculate project-specific statistics
-  const nivioMaterials = materials.filter(m => m.project === 'Nivio');
-  const migneMaterials = materials.filter(m => m.project === 'Migne' || m.project === 'Migne Horizontal' || m.project === 'Migne Vertical');
-  const commonMaterials = materials.filter(m => m.project === 'Common' || m.project === 'Common Direct');
+  const nivioMaterials = materials.filter(m => (m.project || '') === 'Nivio');
+  const migneMaterials = materials.filter(m => /Migne/i.test(m.project || ''));
+  const commonMaterials = materials.filter(m => /Common/i.test(m.project || ''));
 
-  const nivioLowStock = nivioMaterials.filter(m => m.stock <= m.reorderPoint);
-  const migneLowStock = migneMaterials.filter(m => m.stock <= m.reorderPoint);
-  const commonLowStock = commonMaterials.filter(m => m.stock <= m.reorderPoint);
+  const nivioLowStock = nivioMaterials.filter(m => (m.stock || 0) <= (m.reorderPoint || 0));
+  const migneLowStock = migneMaterials.filter(m => (m.stock || 0) <= (m.reorderPoint || 0));
+  const commonLowStock = commonMaterials.filter(m => (m.stock || 0) <= (m.reorderPoint || 0));
 
-  return `You are analyzing SAP inventory data. Provide a clear summary of the overall inventory status and AI insights.
+  return `You are analyzing SAP inventory data. The inventory has ${totalCount} materials in total — base your analysis on these full counts; the item tables below are a sample when counts are high.
 
-## INVENTORY DATA:
+## INVENTORY DATA (full counts):
 - Total Materials: ${summary.totalMaterials}
 - Total Value: ₱${parseFloat(summary.totalValue).toLocaleString()}
 - Critical Items: ${summary.criticalItems}
@@ -336,8 +378,9 @@ function buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lo
 - Healthy Stock: ${summary.healthyItems}
 
 ${criticalItems.length > 0 ? `
-## 🚨 CRITICAL ITEMS:
-${criticalItems.slice(0, 5).map(item => `- **${item.partNumber}** (${item.description.substring(0, 30)}): ${item.stock} ${item.unit} → Order ${Math.max(item.reorderPoint * 2 - item.stock, 0)} ${item.unit} = ₱${(Math.max(item.reorderPoint * 2 - item.stock, 0) * item.price).toFixed(2)}`).join('\n')}
+## 🚨 CRITICAL ITEMS (sample of ${criticalItems.length} total):
+${criticalSample.map(item => `- **${(item.partNumber || '').toString()}** (${(item.description || '').toString().substring(0, 30)}): ${item.stock} ${item.unit || ''} → Order ${Math.max((item.reorderPoint || 0) * 2 - (item.stock || 0), 0)} ${item.unit || ''} = ₱${(Math.max((item.reorderPoint || 0) * 2 - (item.stock || 0), 0) * (item.price || 0)).toFixed(2)}`).join('\n')}
+${criticalItems.length > criticalSample.length ? `\n... and ${criticalItems.length - criticalSample.length} more critical items.\n` : ''}
 ` : ''}
 
 ## PROJECT STATUS:
@@ -378,8 +421,8 @@ Keep it clear and focused on AI-powered insights and future improvements!`;
 }
 
 function generateComprehensiveMockAnalysis(materials, summary) {
-  const criticalItems = materials.filter(m => m.stock < m.reorderPoint * 0.5);
-  const lowStockItems = materials.filter(m => m.stock <= m.reorderPoint);
+  const criticalItems = materials.filter(m => (m.stock ?? 0) < (m.reorderPoint ?? 0) * 0.5);
+  const lowStockItems = materials.filter(m => (m.stock ?? 0) <= (m.reorderPoint ?? 0));
   const groupings = summary.groupings || [];
   
   return `## 📊 AI-POWERED INVENTORY MANAGEMENT ANALYSIS
