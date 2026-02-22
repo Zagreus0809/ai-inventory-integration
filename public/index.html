@@ -141,31 +141,41 @@
                     <canvas id="xyzParetoChart" style="max-height: 260px;"></canvas>
                     <div id="xyzParetoLegend" class="mt-2" style="font-size: 0.85em; color: #555;"></div>
                 </div>
-                <div class="pareto-chart-label" style="margin-top: 8px;">Click to view materials by ABC/XYZ class</div>
+                <div class="pareto-chart-label" style="margin-top: 8px;">ABC/XYZ Classification</div>
+                <p style="font-size: 0.85em; color: #666; margin: 8px 0 12px 0;">
+                    <strong>ABC Analysis:</strong> Based on inventory value (Stock × Price). A = Top 80% of value (high-value items), B = Next 15% (medium-value), C = Last 5% (low-value items).<br>
+                    <strong>XYZ Analysis:</strong> Based on demand stability (Stock/Reorder ratio). X = Stable (2-4x reorder), Y = Moderate (1-2x), Z = Irregular (other ratios).
+                </p>
                 <div class="pareto-grid">
                     <button type="button" class="pareto-box pareto-a" onclick="showMaterialsPopup('A')" title="High Value Items">
                         <span class="pareto-title">A</span>
                         <span class="pareto-desc">(High Value Items)</span>
+                        <span class="pareto-count" id="countA">0</span>
                     </button>
                     <button type="button" class="pareto-box pareto-b" onclick="showMaterialsPopup('B')" title="Medium Value Items">
                         <span class="pareto-title">B</span>
                         <span class="pareto-desc">(Medium Value Items)</span>
+                        <span class="pareto-count" id="countB">0</span>
                     </button>
                     <button type="button" class="pareto-box pareto-c" onclick="showMaterialsPopup('C')" title="Low Value Items">
                         <span class="pareto-title">C</span>
                         <span class="pareto-desc">(Low Value Items)</span>
+                        <span class="pareto-count" id="countC">0</span>
                     </button>
                     <button type="button" class="pareto-box pareto-x" onclick="showMaterialsPopup('X')" title="Stable Demand">
                         <span class="pareto-title">X</span>
                         <span class="pareto-desc">(Stable Demand)</span>
+                        <span class="pareto-count" id="countX">0</span>
                     </button>
                     <button type="button" class="pareto-box pareto-y" onclick="showMaterialsPopup('Y')" title="Moderate or Seasonal">
                         <span class="pareto-title">Y</span>
                         <span class="pareto-desc">(Moderate or Seasonal)</span>
+                        <span class="pareto-count" id="countY">0</span>
                     </button>
                     <button type="button" class="pareto-box pareto-z" onclick="showMaterialsPopup('Z')" title="Irregular">
                         <span class="pareto-title">Z</span>
                         <span class="pareto-desc">(Irregular)</span>
+                        <span class="pareto-count" id="countZ">0</span>
                     </button>
                 </div>
             </div>

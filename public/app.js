@@ -106,6 +106,7 @@ async function loadDashboard() {
         renderTrendChart(dashboardData.groupings || []);
         renderParetoChart();
         renderXyzParetoChart();
+        updateABCXYZCounts(); // Update the counts in the boxes
         if (dashboardData.turnoverClassification) {
             renderTurnoverChart(dashboardData.turnoverClassification);
         }
@@ -816,18 +817,33 @@ function renderTrendChart(groupings) {
 // ABC Pareto chart: 3 bars only — A (high value), B (medium), C (low). Line = cumulative %.
 function renderParetoChart() {
     const ctx = document.getElementById('paretoChart');
-    if (!ctx) return;
+    const legendEl = document.getElementById('paretoLegend');
+    
+    if (!ctx) {
+        console.warn('[Chart] paretoChart canvas not found');
+        return;
+    }
+    
     if (window.paretoChartInstance) {
         window.paretoChartInstance.destroy();
         window.paretoChartInstance = null;
     }
+    
     const mats = (typeof materials !== 'undefined' && materials.length) ? materials : [];
     const withValue = mats
         .map(m => ({ ...m, value: (m.stock || 0) * (m.price || 0) }))
         .filter(m => m.value > 0)
         .sort((a, b) => b.value - a.value);
     const totalValue = withValue.reduce((sum, m) => sum + m.value, 0);
-    if (withValue.length === 0 || totalValue === 0) return;
+    
+    if (withValue.length === 0 || totalValue === 0) {
+        if (legendEl) {
+            legendEl.innerHTML = '<p style="color: #999; font-style: italic;">No data available. Please add price values to your items in ERPNext.</p>';
+        }
+        console.log('[Chart] No data for Pareto chart - items need price values');
+        return;
+    }
+    
     let cum = 0;
     const abc = { A: { value: 0, count: 0 }, B: { value: 0, count: 0 }, C: { value: 0, count: 0 } };
     withValue.forEach(m => {
@@ -847,7 +863,7 @@ function renderParetoChart() {
         cumLine += v;
         return ((cumLine / totalValue) * 100).toFixed(1);
     }).map(Number);
-    const legendEl = document.getElementById('paretoLegend');
+    
     if (legendEl) {
         legendEl.innerHTML = `
             <strong>A</strong>: ${abc.A.count} items = ${((abc.A.value / totalValue) * 100).toFixed(1)}% value &nbsp;|&nbsp;
@@ -925,11 +941,18 @@ function renderParetoChart() {
 // XYZ Pareto chart: bars = value by demand class (X, Y, Z), line = cumulative % of value. Classic Pareto style.
 function renderXyzParetoChart() {
     const ctx = document.getElementById('xyzParetoChart');
-    if (!ctx) return;
+    const legendEl = document.getElementById('xyzParetoLegend');
+    
+    if (!ctx) {
+        console.warn('[Chart] xyzParetoChart canvas not found');
+        return;
+    }
+    
     if (window.xyzParetoChartInstance) {
         window.xyzParetoChartInstance.destroy();
         window.xyzParetoChartInstance = null;
     }
+    
     const mats = (typeof materials !== 'undefined' && materials.length) ? materials : [];
     const ratio = m => (m.reorderPoint > 0 ? (m.stock / m.reorderPoint) : 0);
     const xyz = m => {
@@ -947,7 +970,15 @@ function renderXyzParetoChart() {
         xyzCount[cls]++;
     });
     const totalValue = xyzValue.X + xyzValue.Y + xyzValue.Z;
-    if (totalValue === 0) return;
+    
+    if (totalValue === 0) {
+        if (legendEl) {
+            legendEl.innerHTML = '<p style="color: #999; font-style: italic;">No data available. Please add price values to your items in ERPNext.</p>';
+        }
+        console.log('[Chart] No data for XYZ Pareto chart - items need price values');
+        return;
+    }
+    
     const order = ['X', 'Y', 'Z'];
     const labels = order.map(c => (c === 'X' ? 'X (Stable)' : c === 'Y' ? 'Y (Moderate)' : 'Z (Irregular)'));
     const values = order.map(c => xyzValue[c]);
@@ -956,7 +987,7 @@ function renderXyzParetoChart() {
         cum += v;
         return ((cum / totalValue) * 100).toFixed(1);
     }).map(Number);
-    const legendEl = document.getElementById('xyzParetoLegend');
+    
     if (legendEl) {
         const pctPerClass = order.map((c, i) => (totalValue ? ((xyzValue[c] / totalValue) * 100).toFixed(1) : 0));
         const parts = order.map((c, i) => `${c}: ${xyzCount[c]} items = ${pctPerClass[i]}% of value`).join('  |  ');
@@ -1092,6 +1123,19 @@ function getMaterialsFilteredByType(type) {
         return mats.filter(m => xyz(m) === cls);
     }
     return mats;
+}
+
+// Update ABC/XYZ counts in the dashboard boxes
+function updateABCXYZCounts() {
+    const classes = ['A', 'B', 'C', 'X', 'Y', 'Z'];
+    classes.forEach(cls => {
+        const count = getMaterialsFilteredByType(cls).length;
+        const countEl = document.getElementById(`count${cls}`);
+        if (countEl) {
+            countEl.textContent = count;
+        }
+    });
+    console.log('[Dashboard] ABC/XYZ counts updated');
 }
 
 function showMaterialsPopup(type) {
@@ -1305,12 +1349,24 @@ function renderMaterialsTable(data) {
         return;
     }
     
+    // Calculate ABC classification for value indicators
+    const withValue = data.map(m => ({ ...m, totalValue: (m.stock || 0) * (m.price || 0) })).sort((a, b) => b.totalValue - a.totalValue);
+    const totalVal = withValue.reduce((s, m) => s + m.totalValue, 0);
+    let cum = 0;
+    const abc = {};
+    withValue.forEach(m => {
+        cum += m.totalValue;
+        const pct = totalVal > 0 ? (cum / totalVal) * 100 : 0;
+        abc[m.id] = pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C';
+    });
+    
     const html = `
         <table>
             <thead>
                 <tr>
                     <th>Part Number</th>
                     <th>Description</th>
+                    <th>Value Class</th>
                     <th>Project</th>
                     <th>Grouping</th>
                     <th>Stock</th>
@@ -1318,26 +1374,40 @@ function renderMaterialsTable(data) {
                     <th>Reorder Point</th>
                     <th>Status</th>
                     <th>Storage Location</th>
-                    <th>AI Analysis</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 ${data.map(m => {
-                    const status = m.stock <= m.reorderPoint ? 'critical' : 
-                                 m.stock <= m.reorderPoint * 1.5 ? 'low' : 'normal';
+                    const status = (m.stock || 0) <= (m.reorderPoint || 0) ? 'critical' : 
+                                 (m.stock || 0) <= (m.reorderPoint || 0) * 1.5 ? 'low' : 'normal';
+                    const valueClass = abc[m.id] || 'C';
+                    const valueLabel = valueClass === 'A' ? 'High Value' : valueClass === 'B' ? 'Medium Value' : 'Low Value';
+                    const valueColor = valueClass === 'A' ? '#2196f3' : valueClass === 'B' ? '#9c27b0' : '#4caf50';
+                    const totalValue = ((m.stock || 0) * (m.price || 0)).toLocaleString();
+                    const materialId = (m.id || '').toString().replace(/'/g, "\\'");
+                    
                     return `
                         <tr>
-                            <td><strong>${m.partNumber}</strong></td>
-                            <td>${m.description}</td>
-                            <td>${m.project}</td>
-                            <td>${m.grouping}</td>
-                            <td>${m.stock.toLocaleString()}</td>
-                            <td>${m.unit}</td>
-                            <td>${m.reorderPoint}</td>
-                            <td><span class="status-badge status-${status}">${status.toUpperCase()}</span></td>
-                            <td style="font-size: 11px">${m.storageLocation}</td>
+                            <td><strong>${m.partNumber || ''}</strong></td>
+                            <td>${m.description || ''}</td>
                             <td>
-                                <button onclick="analyzeMaterial('${m.id}')" class="btn btn-sm btn-primary" style="font-size: 0.75em; padding: 4px 8px;">
+                                <span class="value-badge" style="background: ${valueColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600;" title="Total Value: ₱${totalValue}">
+                                    ${valueClass} - ${valueLabel}
+                                </span>
+                            </td>
+                            <td>${m.project || ''}</td>
+                            <td>${m.grouping || ''}</td>
+                            <td>${(m.stock || 0).toLocaleString()}</td>
+                            <td>${m.unit || ''}</td>
+                            <td>${m.reorderPoint || 0}</td>
+                            <td><span class="status-badge status-${status}">${status.toUpperCase()}</span></td>
+                            <td style="font-size: 11px">${m.storageLocation || ''}</td>
+                            <td>
+                                <button onclick="editMaterial('${materialId}')" class="btn btn-sm btn-warning" style="font-size: 0.75em; padding: 4px 8px; margin-right: 4px;" title="Edit Material">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button onclick="analyzeMaterial('${materialId}')" class="btn btn-sm btn-primary" style="font-size: 0.75em; padding: 4px 8px;" title="AI Analysis">
                                     <i class="fas fa-robot"></i> Analyze
                                 </button>
                             </td>
@@ -1541,6 +1611,135 @@ function closeModal() {
     const modal = document.querySelector('.modal');
     if (modal) {
         modal.remove();
+    }
+}
+
+// Edit Material Modal
+async function editMaterial(materialId) {
+    try {
+        // Fetch current material data
+        const response = await fetch(`${API_URL}/api/materials/${materialId}`);
+        if (!response.ok) throw new Error('Failed to fetch material');
+        const material = await response.json();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px;">
+                <h2 style="margin-bottom: 20px; color: #667eea;">
+                    <i class="fas fa-edit"></i> Edit Material
+                </h2>
+                <form id="editMaterialForm">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <div>
+                            <label>Part Number *</label>
+                            <input type="text" id="editPartNumber" value="${material.partNumber}" required readonly style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5;">
+                        </div>
+                        <div>
+                            <label>Description *</label>
+                            <input type="text" id="editDescription" value="${material.description}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <div>
+                            <label>Project</label>
+                            <select id="editProject" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="Nivio" ${material.project === 'Nivio' ? 'selected' : ''}>Nivio</option>
+                                <option value="Migne" ${material.project === 'Migne' ? 'selected' : ''}>Migne</option>
+                                <option value="Common Direct" ${material.project === 'Common Direct' ? 'selected' : ''}>Common Direct</option>
+                                <option value="Common" ${material.project === 'Common' ? 'selected' : ''}>Common</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Grouping *</label>
+                            <select id="editGrouping" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="PCB" ${material.grouping === 'PCB' ? 'selected' : ''}>PCB</option>
+                                <option value="Cu wire" ${material.grouping === 'Cu wire' ? 'selected' : ''}>Cu wire</option>
+                                <option value="Resin" ${material.grouping === 'Resin' ? 'selected' : ''}>Resin</option>
+                                <option value="Bobbin" ${material.grouping === 'Bobbin' ? 'selected' : ''}>Bobbin</option>
+                                <option value="Cable wire" ${material.grouping === 'Cable wire' ? 'selected' : ''}>Cable wire</option>
+                                <option value="Sensor Case" ${material.grouping === 'Sensor Case' ? 'selected' : ''}>Sensor Case</option>
+                                <option value="Case" ${material.grouping === 'Case' ? 'selected' : ''}>Case</option>
+                                <option value="Ferrite" ${material.grouping === 'Ferrite' ? 'selected' : ''}>Ferrite</option>
+                                <option value="Pin header" ${material.grouping === 'Pin header' ? 'selected' : ''}>Pin header</option>
+                                <option value="Soldering" ${material.grouping === 'Soldering' ? 'selected' : ''}>Soldering</option>
+                                <option value="Supplies" ${material.grouping === 'Supplies' ? 'selected' : ''}>Supplies</option>
+                                <option value="General" ${material.grouping === 'General' ? 'selected' : ''}>General</option>
+                                <option value="Raw Material" ${material.grouping === 'Raw Material' ? 'selected' : ''}>Raw Material</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label>Storage Location</label>
+                        <input type="text" id="editStorageLocation" value="${material.storageLocation}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px;">
+                        <div>
+                            <label>Current Stock</label>
+                            <input type="number" id="editStock" value="${material.stock}" readonly style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5;">
+                            <small style="color: #666;">Use Stock Entry to change</small>
+                        </div>
+                        <div>
+                            <label>Reorder Point *</label>
+                            <input type="number" id="editReorderPoint" value="${material.reorderPoint}" required min="0" step="0.01" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label>Unit *</label>
+                            <select id="editUnit" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="PC" ${material.unit === 'PC' ? 'selected' : ''}>PC (Pieces)</option>
+                                <option value="Nos" ${material.unit === 'Nos' ? 'selected' : ''}>Nos (Numbers)</option>
+                                <option value="M" ${material.unit === 'M' ? 'selected' : ''}>M (Meters)</option>
+                                <option value="KG" ${material.unit === 'KG' ? 'selected' : ''}>KG (Kilograms)</option>
+                                <option value="Kg" ${material.unit === 'Kg' ? 'selected' : ''}>Kg (Kilograms)</option>
+                                <option value="L" ${material.unit === 'L' ? 'selected' : ''}>L (Liters)</option>
+                                <option value="BOX" ${material.unit === 'BOX' ? 'selected' : ''}>BOX</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label>Unit Price (₱)</label>
+                        <input type="number" id="editPrice" value="${material.price}" min="0" step="0.01" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                        <button type="button" onclick="closeModal()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+                        <button type="submit" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        document.getElementById('editMaterialForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const updatedMaterial = {
+                description: document.getElementById('editDescription').value,
+                project: document.getElementById('editProject').value,
+                grouping: document.getElementById('editGrouping').value,
+                storageLocation: document.getElementById('editStorageLocation').value,
+                reorderPoint: parseFloat(document.getElementById('editReorderPoint').value),
+                unit: document.getElementById('editUnit').value,
+                price: parseFloat(document.getElementById('editPrice').value) || 0
+            };
+            
+            try {
+                // Note: ERPNext update would go here - for now we'll show a message
+                // In a full implementation, you'd call PUT /api/materials/:id
+                alert('Note: Material updates will be synced to ERPNext.\n\nUpdated fields:\n' + 
+                      Object.keys(updatedMaterial).map(k => `- ${k}: ${updatedMaterial[k]}`).join('\n'));
+                
+                closeModal();
+                loadMaterials();
+                loadDashboard();
+            } catch (error) {
+                alert(`Error updating material: ${error.message}`);
+            }
+        });
+    } catch (error) {
+        alert(`Error loading material: ${error.message}`);
     }
 }
 

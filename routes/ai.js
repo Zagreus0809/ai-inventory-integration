@@ -262,14 +262,45 @@ function buildSummaryFromMaterials(materials) {
 // ============================================
 // COMPREHENSIVE DASHBOARD AI ANALYSIS
 // Analyzes ALL inventory at once for dashboard
-// GET = server data; POST = body.materials (e.g. demo mode)
+// GET = ERPNext data; POST = body.materials (e.g. demo mode)
 // ============================================
 router.get('/dashboard-analysis', async (req, res) => {
-  const useDemo = req.query.demo === '1' && demoMaterialsStore && demoMaterialsStore.length > 0;
   try {
-    const materials = useDemo ? demoMaterialsStore : require('../data/materials');
-    if (useDemo) console.log('[AI] Using stored demo materials for analysis:', materials.length, 'items');
-    const { materials: mats, summary, criticalItems, lowStockItems } = buildSummaryFromMaterials(materials);
+    // Fetch materials from ERPNext
+    const erpnext = require('../services/erpnext');
+    const result = await erpnext.getItems({});
+    const items = result.data || [];
+    
+    // Get stock levels for each item
+    const materials = await Promise.all(items.map(async (item) => {
+      try {
+        const bins = await erpnext.getBins({ item_code: item.name });
+        const totalStock = bins.data?.reduce((sum, bin) => sum + (bin.actual_qty || 0), 0) || 0;
+        
+        return {
+          id: item.name,
+          partNumber: item.item_code || item.name,
+          description: item.item_name || item.description || '',
+          project: item.project || 'Common',
+          grouping: item.item_group || 'General',
+          storageLocation: item.default_warehouse || 'General Storage',
+          stock: totalStock,
+          reorderPoint: item.min_order_qty || 10,
+          unit: item.stock_uom || 'Nos',
+          price: item.standard_rate || 0,
+          lastUpdated: item.modified || new Date().toISOString()
+        };
+      } catch (error) {
+        console.error(`Error fetching stock for ${item.name}:`, error);
+        return null;
+      }
+    }));
+    
+    const validMaterials = materials.filter(m => m !== null);
+    console.log('[AI] Fetched materials from ERPNext:', validMaterials.length, 'items');
+    
+    const { materials: mats, summary, criticalItems, lowStockItems } = buildSummaryFromMaterials(validMaterials);
+    
     if (!process.env.GEMINI_API_KEY) {
       return res.json({
         success: true,
@@ -280,24 +311,21 @@ router.get('/dashboard-analysis', async (req, res) => {
         reason: 'GEMINI_API_KEY not configured'
       });
     }
+    
     const prompt = buildComprehensiveDashboardPrompt(mats, summary, criticalItems, lowStockItems);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     console.log('[AI] Generating comprehensive dashboard analysis...');
-    const result = await model.generateContent(prompt);
-    const analysis = result.response.text();
+    const result2 = await model.generateContent(prompt);
+    const analysis = result2.response.text();
     console.log('[AI] Dashboard analysis complete');
     res.json({ success: true, analysis, timestamp: new Date().toISOString(), summary, isMock: false });
   } catch (error) {
     console.error('Dashboard Analysis Error:', error.message);
-    const fallbackMaterials = useDemo ? demoMaterialsStore : require('../data/materials');
-    const { summary } = buildSummaryFromMaterials(fallbackMaterials);
-    res.json({
-      success: true,
-      analysis: generateComprehensiveMockAnalysis(fallbackMaterials, summary),
-      timestamp: new Date().toISOString(),
-      summary,
-      error: error.message,
-      isMock: true
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch materials from ERPNext',
+      details: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -368,9 +396,9 @@ function buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lo
   const migneLowStock = migneMaterials.filter(m => (m.stock || 0) <= (m.reorderPoint || 0));
   const commonLowStock = commonMaterials.filter(m => (m.stock || 0) <= (m.reorderPoint || 0));
 
-  return `You are analyzing SAP inventory data. The inventory has ${totalCount} materials in total — base your analysis on these full counts; the item tables below are a sample when counts are high.
+  return `You are analyzing SAP inventory data from ERPNext. The inventory has ${totalCount} materials in total — base your analysis on these ACTUAL counts; the item tables below are a sample when counts are high.
 
-## INVENTORY DATA (full counts):
+## INVENTORY DATA (REAL-TIME from ERPNext):
 - Total Materials: ${summary.totalMaterials}
 - Total Value: ₱${parseFloat(summary.totalValue).toLocaleString()}
 - Critical Items: ${summary.criticalItems}
@@ -393,7 +421,7 @@ ${criticalItems.length > criticalSample.length ? `\n... and ${criticalItems.leng
 Provide analysis in this format:
 
 ## 📊 Overall Inventory Summary
-[2-3 sentences about the current inventory status - what's good, what needs attention]
+[2-3 sentences about the current inventory status based on the ACTUAL ${totalCount} materials - what's good, what needs attention]
 
 ## 🤖 AI Insights
 [Explain what the AI system detected - anomalies, patterns, predictions. Focus on: automated monitoring, intelligent alerts, predictive analytics, real-time tracking, efficiency gains from AI]
@@ -417,23 +445,25 @@ Provide analysis in this format:
 
 Each recommendation should explain HOW the AI improvement would benefit the inventory management.]
 
-Keep it clear and focused on AI-powered insights and future improvements!`;
+IMPORTANT: Base all analysis on the ACTUAL ${totalCount} materials count, not any assumed number. Be accurate with the real data provided.`;
 }
 
 function generateComprehensiveMockAnalysis(materials, summary) {
   const criticalItems = materials.filter(m => (m.stock ?? 0) < (m.reorderPoint ?? 0) * 0.5);
   const lowStockItems = materials.filter(m => (m.stock ?? 0) <= (m.reorderPoint ?? 0));
   const groupings = summary.groupings || [];
+  const totalCount = summary.totalMaterials || materials.length;
   
   return `## 📊 AI-POWERED INVENTORY MANAGEMENT ANALYSIS
 **Analysis Date:** ${new Date().toLocaleString()}
-**System:** SAP AI Inventory with Gemini Integration
+**System:** SAP AI Inventory with ERPNext Integration
+**Materials Analyzed:** ${totalCount} items (Real-time from ERPNext)
 
 ---
 
 ### 1. 🎯 EXECUTIVE SUMMARY
 
-${summary.criticalItems > 0 ? '⚠️ **Overall Status: CRITICAL ATTENTION REQUIRED**' : summary.lowStockItems > 5 ? '⚠️ **Overall Status: WARNING**' : '✅ **Overall Status: HEALTHY**'} - Your inventory contains ${summary.totalMaterials} materials valued at ₱${parseFloat(summary.totalValue).toLocaleString()}. ${summary.criticalItems > 0 ? `${summary.criticalItems} items require immediate attention to prevent stockouts.` : summary.lowStockItems > 0 ? `${summary.lowStockItems} items are approaching reorder points.` : 'All items are at healthy stock levels.'} AI system has analyzed all materials and identified optimization opportunities worth ₱${(parseFloat(summary.totalValue) * 0.15).toLocaleString()} in potential savings.
+${summary.criticalItems > 0 ? '⚠️ **Overall Status: CRITICAL ATTENTION REQUIRED**' : summary.lowStockItems > 5 ? '⚠️ **Overall Status: WARNING**' : '✅ **Overall Status: HEALTHY**'} - Your inventory contains ${totalCount} materials valued at ₱${parseFloat(summary.totalValue).toLocaleString()}. ${summary.criticalItems > 0 ? `${summary.criticalItems} items require immediate attention to prevent stockouts.` : summary.lowStockItems > 0 ? `${summary.lowStockItems} items are approaching reorder points.` : 'All items are at healthy stock levels.'} AI system has analyzed all ${totalCount} materials and identified optimization opportunities worth ₱${(parseFloat(summary.totalValue) * 0.15).toLocaleString()} in potential savings.
 
 ---
 
@@ -602,9 +632,9 @@ ${groupings.slice(0, 5).map(g =>
 
 ---
 
-*🤖 AI-Powered Analysis | Demo Mode - Configure GEMINI_API_KEY for enhanced real-time AI insights*
-*Last Updated: ${new Date().toLocaleString()} | Auto-Refresh: Every 5 minutes*
-*System Status: 🟢 All AI features operational*`;
+*🤖 AI-Powered Analysis | Real-Time ERPNext Data | ${totalCount} Materials Analyzed*
+*Last Updated: ${new Date().toLocaleString()} | Data Source: ERPNext Cloud*
+*System Status: 🟢 All AI features operational | Configure GEMINI_API_KEY for enhanced AI insights*`;
 }
 
 // AI Low Stock Analysis

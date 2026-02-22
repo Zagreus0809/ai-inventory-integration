@@ -1013,6 +1013,13 @@ body.demo-mode-active .sidebar {
 }
 .pareto-box .pareto-title { font-weight: 700; font-size: 18px; color: #1565c0; }
 .pareto-box .pareto-desc { color: #666; font-size: 12px; margin-top: 4px; }
+.pareto-box .pareto-count { 
+    display: block;
+    font-weight: 700; 
+    font-size: 24px; 
+    color: #1565c0; 
+    margin-top: 8px;
+}
 .pareto-box.pareto-b { background: #f3e5f5; border-color: #9c27b0; }
 .pareto-box.pareto-b:hover { background: #e1bee7; }
 .pareto-box.pareto-b .pareto-title { color: #7b1fa2; }

@@ -29,6 +29,17 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ERPNext connection test endpoint
+app.get('/api/erpnext/test', async (req, res) => {
+  try {
+    const erpnext = require('./services/erpnext');
+    const result = await erpnext.testConnection();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Only listen when running locally (not on Vercel serverless)
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {

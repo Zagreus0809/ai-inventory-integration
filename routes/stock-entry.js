@@ -1,226 +1,208 @@
 const express = require('express');
 const router = express.Router();
+const erpnext = require('../services/erpnext');
 
-// In-memory storage for stock entries
-let stockEntries = [];
-let stockEntryCounter = 1;
-
-// Stock Ledger - tracks all movements
-let stockLedger = [];
-
-// GET all stock entries
-router.get('/', (req, res) => {
-  const { type, startDate, endDate } = req.query;
-  
-  let filtered = [...stockEntries];
-  
-  if (type) {
-    filtered = filtered.filter(e => e.entryType === type);
-  }
-  
-  if (startDate) {
-    filtered = filtered.filter(e => new Date(e.date) >= new Date(startDate));
-  }
-  
-  if (endDate) {
-    filtered = filtered.filter(e => new Date(e.date) <= new Date(endDate));
-  }
-  
-  res.json(filtered.sort((a, b) => new Date(b.date) - new Date(a.date)));
-});
-
-// CREATE stock entry (Material Receipt, Issue, Transfer)
-router.post('/', (req, res) => {
-  const { entryType, items, sourceWarehouse, targetWarehouse, remarks, reference } = req.body;
-  
-  // Validation
-  if (!entryType || !items || items.length === 0) {
-    return res.status(400).json({ error: 'Entry type and items are required' });
-  }
-  
-  // Validate entry type
-  const validTypes = ['Material Receipt', 'Material Issue', 'Material Transfer', 'Material Consumption'];
-  if (!validTypes.includes(entryType)) {
-    return res.status(400).json({ error: 'Invalid entry type' });
-  }
-  
-  // Create stock entry
-  const stockEntry = {
-    id: `SE-${String(stockEntryCounter++).padStart(6, '0')}`,
-    entryType,
-    items: items.map(item => ({
-      materialId: item.materialId,
-      partNumber: item.partNumber,
-      description: item.description,
-      quantity: parseFloat(item.quantity),
-      unit: item.unit,
-      warehouse: item.warehouse || targetWarehouse || sourceWarehouse,
-      rate: parseFloat(item.rate || 0),
-      amount: parseFloat(item.quantity) * parseFloat(item.rate || 0)
-    })),
-    sourceWarehouse: sourceWarehouse || null,
-    targetWarehouse: targetWarehouse || null,
-    totalAmount: items.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.rate || 0)), 0),
-    remarks: remarks || '',
-    reference: reference || '',
-    date: new Date().toISOString(),
-    status: 'Submitted',
-    createdBy: 'System User'
-  };
-  
-  // Add to stock ledger
-  items.forEach(item => {
-    // For Material Receipt - add to target warehouse
-    if (entryType === 'Material Receipt') {
-      stockLedger.push({
-        id: `SLE-${stockLedger.length + 1}`,
-        stockEntryId: stockEntry.id,
-        materialId: item.materialId,
-        partNumber: item.partNumber,
-        warehouse: targetWarehouse || item.warehouse,
-        quantity: parseFloat(item.quantity),
-        quantityChange: parseFloat(item.quantity),
-        voucherType: 'Stock Entry',
-        voucherNo: stockEntry.id,
-        date: stockEntry.date,
-        entryType: 'IN'
-      });
+// GET all stock entries - Real-time from ERPNext
+router.get('/', async (req, res) => {
+  try {
+    const { type, startDate, endDate } = req.query;
+    const filters = {};
+    
+    if (type) {
+      filters.stock_entry_type = type;
     }
     
-    // For Material Issue - remove from source warehouse
-    if (entryType === 'Material Issue' || entryType === 'Material Consumption') {
-      stockLedger.push({
-        id: `SLE-${stockLedger.length + 1}`,
-        stockEntryId: stockEntry.id,
-        materialId: item.materialId,
-        partNumber: item.partNumber,
-        warehouse: sourceWarehouse || item.warehouse,
-        quantity: -parseFloat(item.quantity),
-        quantityChange: -parseFloat(item.quantity),
-        voucherType: 'Stock Entry',
-        voucherNo: stockEntry.id,
-        date: stockEntry.date,
-        entryType: 'OUT'
-      });
+    if (startDate) {
+      filters.posting_date = ['>=', startDate];
     }
     
-    // For Material Transfer - remove from source, add to target
-    if (entryType === 'Material Transfer') {
-      // OUT from source
-      stockLedger.push({
-        id: `SLE-${stockLedger.length + 1}`,
-        stockEntryId: stockEntry.id,
-        materialId: item.materialId,
-        partNumber: item.partNumber,
-        warehouse: sourceWarehouse,
-        quantity: -parseFloat(item.quantity),
-        quantityChange: -parseFloat(item.quantity),
-        voucherType: 'Stock Entry',
-        voucherNo: stockEntry.id,
-        date: stockEntry.date,
-        entryType: 'OUT'
-      });
-      
-      // IN to target
-      stockLedger.push({
-        id: `SLE-${stockLedger.length + 1}`,
-        stockEntryId: stockEntry.id,
-        materialId: item.materialId,
-        partNumber: item.partNumber,
-        warehouse: targetWarehouse,
-        quantity: parseFloat(item.quantity),
-        quantityChange: parseFloat(item.quantity),
-        voucherType: 'Stock Entry',
-        voucherNo: stockEntry.id,
-        date: stockEntry.date,
-        entryType: 'IN'
-      });
-    }
-  });
-  
-  stockEntries.push(stockEntry);
-  res.status(201).json(stockEntry);
-});
-
-// GET stock ledger
-router.get('/ledger', (req, res) => {
-  const { materialId, warehouse } = req.query;
-  
-  let filtered = [...stockLedger];
-  
-  if (materialId) {
-    filtered = filtered.filter(e => e.materialId === materialId);
-  }
-  
-  if (warehouse) {
-    filtered = filtered.filter(e => e.warehouse === warehouse);
-  }
-  
-  res.json(filtered.sort((a, b) => new Date(b.date) - new Date(a.date)));
-});
-
-// GET stock balance by warehouse
-router.get('/balance', (req, res) => {
-  const { warehouse } = req.query;
-  
-  // Calculate stock balance from ledger
-  const balance = {};
-  
-  stockLedger.forEach(entry => {
-    if (warehouse && entry.warehouse !== warehouse) return;
+    const result = await erpnext.getStockEntries(filters);
+    const entries = result.data || [];
     
-    const key = `${entry.materialId}_${entry.warehouse}`;
-    if (!balance[key]) {
-      balance[key] = {
-        materialId: entry.materialId,
-        partNumber: entry.partNumber,
-        warehouse: entry.warehouse,
-        quantity: 0
-      };
+    const formatted = entries.map(entry => ({
+      id: entry.name,
+      entryType: entry.stock_entry_type,
+      items: entry.items || [],
+      sourceWarehouse: entry.from_warehouse,
+      targetWarehouse: entry.to_warehouse,
+      totalAmount: entry.total_amount || 0,
+      remarks: entry.remarks || '',
+      reference: entry.purchase_order || entry.work_order || '',
+      date: entry.posting_date,
+      status: entry.docstatus === 1 ? 'Submitted' : entry.docstatus === 2 ? 'Cancelled' : 'Draft',
+      createdBy: entry.owner
+    }));
+    
+    // Apply date filters
+    let filtered = formatted;
+    if (endDate) {
+      filtered = filtered.filter(e => new Date(e.date) <= new Date(endDate));
     }
-    balance[key].quantity += entry.quantityChange;
-  });
-  
-  res.json(Object.values(balance));
+    
+    res.json(filtered.sort((a, b) => new Date(b.date) - new Date(a.date)));
+  } catch (error) {
+    console.error('Error fetching stock entries from ERPNext:', error);
+    res.status(500).json({ error: 'Failed to fetch stock entries from ERPNext', details: error.message });
+  }
 });
 
-// GET single stock entry
-router.get('/:id', (req, res) => {
-  const entry = stockEntries.find(e => e.id === req.params.id);
-  if (!entry) {
-    return res.status(404).json({ error: 'Stock entry not found' });
-  }
-  res.json(entry);
-});
+// CREATE stock entry (Material Receipt, Issue, Transfer) - ERPNext only
+router.post('/', async (req, res) => {
+  try {
+    const { entryType, items, sourceWarehouse, targetWarehouse, remarks, reference } = req.body;
+    
+    // Validation
+    if (!entryType || !items || items.length === 0) {
+      return res.status(400).json({ error: 'Entry type and items are required' });
+    }
 
-// CANCEL stock entry
-router.post('/:id/cancel', (req, res) => {
-  const entry = stockEntries.find(e => e.id === req.params.id);
-  if (!entry) {
-    return res.status(404).json({ error: 'Stock entry not found' });
-  }
-  
-  if (entry.status === 'Cancelled') {
-    return res.status(400).json({ error: 'Entry already cancelled' });
-  }
-  
-  entry.status = 'Cancelled';
-  entry.cancelledDate = new Date().toISOString();
-  
-  // Reverse stock ledger entries
-  const relatedLedgerEntries = stockLedger.filter(e => e.stockEntryId === entry.id);
-  relatedLedgerEntries.forEach(ledgerEntry => {
-    stockLedger.push({
-      ...ledgerEntry,
-      id: `SLE-${stockLedger.length + 1}`,
-      quantity: -ledgerEntry.quantity,
-      quantityChange: -ledgerEntry.quantityChange,
-      entryType: ledgerEntry.entryType === 'IN' ? 'OUT' : 'IN',
-      remarks: `Reversal of ${ledgerEntry.id}`
+    // Create in ERPNext
+    const stockEntryData = {
+      doctype: 'Stock Entry',
+      stock_entry_type: entryType,
+      from_warehouse: sourceWarehouse || null,
+      to_warehouse: targetWarehouse || null,
+      remarks: remarks || '',
+      items: items.map(item => ({
+        item_code: item.materialId,
+        qty: parseFloat(item.quantity),
+        uom: item.unit,
+        s_warehouse: sourceWarehouse || null,
+        t_warehouse: targetWarehouse || null,
+        basic_rate: parseFloat(item.rate || 0)
+      }))
+    };
+    
+    const result = await erpnext.createStockEntry(stockEntryData);
+    
+    res.status(201).json({
+      id: result.data.name,
+      entryType: result.data.stock_entry_type,
+      items: result.data.items,
+      sourceWarehouse: result.data.from_warehouse,
+      targetWarehouse: result.data.to_warehouse,
+      totalAmount: result.data.total_amount || 0,
+      remarks: result.data.remarks,
+      date: result.data.posting_date,
+      status: result.data.docstatus === 1 ? 'Submitted' : 'Draft',
+      createdBy: result.data.owner
     });
-  });
-  
-  res.json(entry);
+  } catch (error) {
+    console.error('Error creating stock entry in ERPNext:', error);
+    res.status(500).json({ error: 'Failed to create stock entry in ERPNext', details: error.message });
+  }
+});
+
+// GET stock ledger - Real-time from ERPNext
+router.get('/ledger', async (req, res) => {
+  try {
+    const { materialId, warehouse } = req.query;
+    const filters = {};
+    
+    if (materialId) {
+      filters.item_code = materialId;
+    }
+    
+    if (warehouse) {
+      filters.warehouse = warehouse;
+    }
+    
+    const result = await erpnext.getStockLedgerEntries(filters);
+    const entries = result.data || [];
+    
+    const formatted = entries.map(entry => ({
+      id: entry.name,
+      stockEntryId: entry.voucher_no,
+      materialId: entry.item_code,
+      partNumber: entry.item_code,
+      warehouse: entry.warehouse,
+      quantity: entry.actual_qty,
+      quantityChange: entry.qty_after_transaction - (entry.actual_qty || 0),
+      voucherType: entry.voucher_type,
+      voucherNo: entry.voucher_no,
+      date: entry.posting_date,
+      entryType: entry.actual_qty > 0 ? 'IN' : 'OUT'
+    }));
+    
+    res.json(formatted.sort((a, b) => new Date(b.date) - new Date(a.date)));
+  } catch (error) {
+    console.error('Error fetching stock ledger from ERPNext:', error);
+    res.status(500).json({ error: 'Failed to fetch stock ledger from ERPNext', details: error.message });
+  }
+});
+
+// GET stock balance by warehouse - Real-time from ERPNext
+router.get('/balance', async (req, res) => {
+  try {
+    const { warehouse } = req.query;
+    const filters = {};
+    
+    if (warehouse) {
+      filters.warehouse = warehouse;
+    }
+    
+    const result = await erpnext.getBins(filters);
+    const bins = result.data || [];
+    
+    const balance = bins.map(bin => ({
+      materialId: bin.item_code,
+      partNumber: bin.item_code,
+      warehouse: bin.warehouse,
+      quantity: bin.actual_qty || 0
+    }));
+    
+    res.json(balance);
+  } catch (error) {
+    console.error('Error fetching stock balance from ERPNext:', error);
+    res.status(500).json({ error: 'Failed to fetch stock balance from ERPNext', details: error.message });
+  }
+});
+
+// GET single stock entry - Real-time from ERPNext
+router.get('/:id', async (req, res) => {
+  try {
+    const result = await erpnext.request(`/api/resource/Stock Entry/${req.params.id}`);
+    const entry = result.data;
+    
+    res.json({
+      id: entry.name,
+      entryType: entry.stock_entry_type,
+      items: entry.items || [],
+      sourceWarehouse: entry.from_warehouse,
+      targetWarehouse: entry.to_warehouse,
+      totalAmount: entry.total_amount || 0,
+      remarks: entry.remarks || '',
+      reference: entry.purchase_order || entry.work_order || '',
+      date: entry.posting_date,
+      status: entry.docstatus === 1 ? 'Submitted' : entry.docstatus === 2 ? 'Cancelled' : 'Draft',
+      createdBy: entry.owner
+    });
+  } catch (error) {
+    console.error('Error fetching stock entry from ERPNext:', error);
+    res.status(404).json({ error: 'Stock entry not found in ERPNext', details: error.message });
+  }
+});
+
+// CANCEL stock entry - ERPNext only
+router.post('/:id/cancel', async (req, res) => {
+  try {
+    // Cancel in ERPNext by setting docstatus to 2
+    const result = await erpnext.request(`/api/resource/Stock Entry/${req.params.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        docstatus: 2
+      })
+    });
+    
+    res.json({
+      id: result.data.name,
+      status: 'Cancelled',
+      cancelledDate: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error cancelling stock entry in ERPNext:', error);
+    res.status(500).json({ error: 'Failed to cancel stock entry in ERPNext', details: error.message });
+  }
 });
 
 module.exports = router;
