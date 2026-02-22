@@ -5,6 +5,17 @@ class ERPNextService {
     this.baseUrl = process.env.ERPNEXT_URL;
     this.apiKey = process.env.ERPNEXT_API_KEY;
     this.apiSecret = process.env.ERPNEXT_API_SECRET;
+    
+    // Validate configuration
+    if (!this.baseUrl || !this.apiKey || !this.apiSecret) {
+      console.error('[ERPNext] Configuration missing!');
+      console.error('ERPNEXT_URL:', this.baseUrl ? 'Set' : 'MISSING');
+      console.error('ERPNEXT_API_KEY:', this.apiKey ? 'Set' : 'MISSING');
+      console.error('ERPNEXT_API_SECRET:', this.apiSecret ? 'Set' : 'MISSING');
+    } else {
+      console.log('[ERPNext] Service initialized successfully');
+      console.log('[ERPNext] URL:', this.baseUrl);
+    }
   }
 
   async request(endpoint, options = {}) {
@@ -15,6 +26,8 @@ class ERPNextService {
       ...options.headers
     };
 
+    console.log(`[ERPNext] Request: ${options.method || 'GET'} ${endpoint}`);
+
     try {
       const response = await fetch(url, {
         ...options,
@@ -23,12 +36,15 @@ class ERPNextService {
 
       if (!response.ok) {
         const error = await response.text();
+        console.error(`[ERPNext] Error ${response.status}:`, error);
         throw new Error(`ERPNext API Error: ${response.status} - ${error}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log(`[ERPNext] Success: ${endpoint}`);
+      return data;
     } catch (error) {
-      console.error('ERPNext request failed:', error);
+      console.error('[ERPNext] Request failed:', error.message);
       throw error;
     }
   }
