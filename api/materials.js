@@ -63,14 +63,29 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // Debug: Log environment variable status
+    console.log('[Materials] Environment check:');
+    console.log('ERPNEXT_URL:', process.env.ERPNEXT_URL ? 'SET' : 'MISSING');
+    console.log('ERPNEXT_API_KEY:', process.env.ERPNEXT_API_KEY ? 'SET' : 'MISSING');
+    console.log('ERPNEXT_API_SECRET:', process.env.ERPNEXT_API_SECRET ? 'SET' : 'MISSING');
+    console.log('All env keys:', Object.keys(process.env).filter(k => k.includes('ERP')).join(', '));
+    
     const erpnext = new ERPNextService();
     
     // Validate environment variables
     if (!erpnext.baseUrl || !erpnext.apiKey || !erpnext.apiSecret) {
       console.error('[Materials] Missing environment variables');
+      console.error('baseUrl:', erpnext.baseUrl);
+      console.error('apiKey:', erpnext.apiKey ? 'SET' : 'MISSING');
+      console.error('apiSecret:', erpnext.apiSecret ? 'SET' : 'MISSING');
       return res.status(500).json({ 
         error: 'Server configuration error',
-        details: 'ERPNext credentials not configured'
+        details: 'ERPNext credentials not configured',
+        debug: {
+          hasUrl: !!erpnext.baseUrl,
+          hasKey: !!erpnext.apiKey,
+          hasSecret: !!erpnext.apiSecret
+        }
       });
     }
 
