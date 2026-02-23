@@ -130,7 +130,7 @@ module.exports = async (req, res) => {
       grouping: item.item_group || 'General',
       storageLocation: item.default_warehouse || 'General Storage',
       stock: stockMap[item.name] || 0,
-      reorderPoint: item.min_order_qty || 10,
+      reorderPoint: item.safety_stock || item.min_order_qty || 10,
       unit: item.stock_uom || 'Nos',
       price: item.standard_rate || 0,
       lastUpdated: item.modified || new Date().toISOString()
