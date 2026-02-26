@@ -747,67 +747,200 @@ function renderTrendChart(groupings) {
     if (window.trendChartInstance) {
         window.trendChartInstance.destroy();
     }
+    
     const mats = (typeof materials !== 'undefined' && materials.length) ? materials : [];
     const labels = groupings.map(g => g.grouping);
-    const totalStockData = groupings.map(g => g.totalStock || 0);
-    const lowStockData = groupings.map(g => g.lowStock || 0);
+    
+    // Calculate stock quantities by status for each grouping
+    const criticalStockData = groupings.map(g => {
+        const grp = g.grouping;
+        return mats
+            .filter(m => m.grouping === grp && (m.stock || 0) <= (m.reorderPoint || 0))
+            .reduce((sum, m) => sum + (m.stock || 0), 0);
+    });
+    
+    const lowStockData = groupings.map(g => {
+        const grp = g.grouping;
+        return mats
+            .filter(m => {
+                const stock = m.stock || 0;
+                const reorder = m.reorderPoint || 0;
+                const safetyStock = m.safetyStock || (m.reorderPoint || 0) * 2;
+                const lowThreshold = reorder + (safetyStock - reorder) * 0.5;
+                return m.grouping === grp && stock > reorder && stock < lowThreshold;
+            })
+            .reduce((sum, m) => sum + (m.stock || 0), 0);
+    });
+    
+    const safetyStockData = groupings.map(g => {
+        const grp = g.grouping;
+        return mats
+            .filter(m => {
+                const stock = m.stock || 0;
+                const reorder = m.reorderPoint || 0;
+                const safetyStock = m.safetyStock || (m.reorderPoint || 0) * 2;
+                const lowThreshold = reorder + (safetyStock - reorder) * 0.5;
+                return m.grouping === grp && stock >= lowThreshold && stock <= safetyStock;
+            })
+            .reduce((sum, m) => sum + (m.stock || 0), 0);
+    });
+    
     const overStockData = groupings.map(g => {
         const grp = g.grouping;
-        return mats.filter(m => m.grouping === grp && m.stock > (m.reorderPoint || 0) * 3).length;
+        return mats
+            .filter(m => {
+                const stock = m.stock || 0;
+                const safetyStock = m.safetyStock || (m.reorderPoint || 0) * 2;
+                return m.grouping === grp && stock > safetyStock;
+            })
+            .reduce((sum, m) => sum + (m.stock || 0), 0);
     });
+    
     window.trendChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels,
             datasets: [
                 {
-                    label: 'Total Stock (qty)',
-                    data: totalStockData,
-                    backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                    borderColor: '#667eea',
-                    borderWidth: 1,
-                    yAxisID: 'y'
+                    label: 'Critical Stock',
+                    data: criticalStockData,
+                    backgroundColor: 'rgba(220, 38, 38, 0.85)',
+                    borderColor: '#dc2626',
+                    borderWidth: 2,
+                    borderRadius: 4
                 },
                 {
-                    label: 'Low Stock (items count)',
+                    label: 'Low Stock',
                     data: lowStockData,
-                    backgroundColor: 'rgba(245, 87, 108, 0.8)',
-                    borderColor: '#f5576c',
-                    borderWidth: 1,
-                    yAxisID: 'y1'
+                    backgroundColor: 'rgba(251, 146, 60, 0.85)',
+                    borderColor: '#fb923c',
+                    borderWidth: 2,
+                    borderRadius: 4
                 },
                 {
-                    label: 'Over Stock (items count)',
+                    label: 'Safety Stock',
+                    data: safetyStockData,
+                    backgroundColor: 'rgba(34, 197, 94, 0.85)',
+                    borderColor: '#22c55e',
+                    borderWidth: 2,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Over Stock',
                     data: overStockData,
-                    backgroundColor: 'rgba(255, 152, 0, 0.8)',
-                    borderColor: '#ff9800',
-                    borderWidth: 1,
-                    yAxisID: 'y1'
+                    backgroundColor: 'rgba(59, 130, 246, 0.85)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 2,
+                    borderRadius: 4
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             scales: {
-                y: {
-                    type: 'linear',
-                    position: 'left',
-                    beginAtZero: true,
-                    title: { display: true, text: 'Total Stock (quantity)' },
-                    grid: { drawOnChartArea: true }
+                x: {
+                    stacked: true,
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            size: 11,
+                            weight: '500'
+                        }
+                    }
                 },
-                y1: {
-                    type: 'linear',
-                    position: 'right',
+                y: {
+                    stacked: true,
                     beginAtZero: true,
-                    title: { display: true, text: 'Item count (Low / Over)' },
-                    grid: { drawOnChartArea: false }
+                    title: {
+                        display: true,
+                        text: 'Stock Quantity (units)',
+                        font: {
+                            size: 12,
+                            weight: '600'
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString();
+                        }
+                    }
                 }
             },
             plugins: {
-                legend: { position: 'bottom' },
-                tooltip: { mode: 'index', intersect: false }
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        font: {
+                            size: 11,
+                            weight: '500'
+                        },
+                        usePointStyle: true,
+                        pointStyle: 'rectRounded'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: {
+                        size: 13,
+                        weight: '600'
+                    },
+                    bodyFont: {
+                        size: 12
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.dataset.label || '';
+                            const value = context.parsed.y || 0;
+                            const grouping = context.label;
+                            const grpMats = mats.filter(m => m.grouping === grouping);
+                            
+                            let count = 0;
+                            if (label === 'Critical Stock') {
+                                count = grpMats.filter(m => (m.stock || 0) <= (m.reorderPoint || 0)).length;
+                            } else if (label === 'Low Stock') {
+                                count = grpMats.filter(m => {
+                                    const stock = m.stock || 0;
+                                    const reorder = m.reorderPoint || 0;
+                                    const safetyStock = m.safetyStock || (m.reorderPoint || 0) * 2;
+                                    const lowThreshold = reorder + (safetyStock - reorder) * 0.5;
+                                    return stock > reorder && stock < lowThreshold;
+                                }).length;
+                            } else if (label === 'Safety Stock') {
+                                count = grpMats.filter(m => {
+                                    const stock = m.stock || 0;
+                                    const reorder = m.reorderPoint || 0;
+                                    const safetyStock = m.safetyStock || (m.reorderPoint || 0) * 2;
+                                    const lowThreshold = reorder + (safetyStock - reorder) * 0.5;
+                                    return stock >= lowThreshold && stock <= safetyStock;
+                                }).length;
+                            } else if (label === 'Over Stock') {
+                                count = grpMats.filter(m => {
+                                    const stock = m.stock || 0;
+                                    const safetyStock = m.safetyStock || (m.reorderPoint || 0) * 2;
+                                    return stock > safetyStock;
+                                }).length;
+                            }
+                            
+                            return `${label}: ${value.toLocaleString()} units (${count} items)`;
+                        },
+                        footer: function(tooltipItems) {
+                            const total = tooltipItems.reduce((sum, item) => sum + item.parsed.y, 0);
+                            return `Total: ${total.toLocaleString()} units`;
+                        }
+                    }
+                }
             }
         }
     });
@@ -1097,10 +1230,35 @@ function filterByCategory(cat) {
 function getMaterialsFilteredByType(type) {
     const mats = (typeof materials !== 'undefined' && materials.length) ? materials : [];
     const r = type.toLowerCase();
+    
+    // New classification logic using safety stock ranges
     if (r === 'critical') return mats.filter(m => (m.stock || 0) <= (m.reorderPoint || 0));
-    if (r === 'low') return mats.filter(m => (m.reorderPoint || 0) < (m.stock || 0) && (m.stock || 0) <= (m.reorderPoint || 0) * 1.5);
-    if (r === 'over') return mats.filter(m => (m.stock || 0) > (m.reorderPoint || 0) * 3);
-    if (r === 'safety') return mats.filter(m => (m.reorderPoint || 0) * 1.5 < (m.stock || 0) && (m.stock || 0) <= (m.reorderPoint || 0) * 3);
+    if (r === 'low') {
+        return mats.filter(m => {
+            const stock = m.stock || 0;
+            const reorderPoint = m.reorderPoint || 0;
+            const safetyStock = m.safetyStock || reorderPoint * 2;
+            const safetyMin = safetyStock * 0.625; // 50% of safety stock
+            return stock > reorderPoint && stock < safetyMin;
+        });
+    }
+    if (r === 'safety') {
+        return mats.filter(m => {
+            const stock = m.stock || 0;
+            const reorderPoint = m.reorderPoint || 0;
+            const safetyStock = m.safetyStock || reorderPoint * 2;
+            const safetyMin = safetyStock * 0.625; // 50% of safety stock
+            const safetyMax = safetyStock; // 100% of safety stock
+            return stock >= safetyMin && stock <= safetyMax;
+        });
+    }
+    if (r === 'over') {
+        return mats.filter(m => {
+            const stock = m.stock || 0;
+            const safetyStock = m.safetyStock || (m.reorderPoint || 0) * 2;
+            return stock > safetyStock;
+        });
+    }
     if (['a', 'b', 'c', 'x', 'y', 'z'].includes(r)) {
         const withValue = mats.map(m => ({ ...m, totalValue: (m.stock || 0) * (m.price || 0) })).sort((a, b) => b.totalValue - a.totalValue);
         const totalVal = withValue.reduce((s, m) => s + m.totalValue, 0);
@@ -1170,7 +1328,16 @@ function showMaterialsPopup(type) {
                     ${list.map(m => {
                         const rp = m.reorderPoint || 0;
                         const st = m.stock || 0;
-                        const status = st <= rp ? 'Critical' : st <= rp * 1.5 ? 'Low' : st > rp * 3 ? 'Over' : 'Safety';
+                        const safetyStock = m.safetyStock || rp * 2;
+                        const safetyMin = safetyStock * 0.625;
+                        const safetyMax = safetyStock;
+                        
+                        let status = 'Safety';
+                        if (st <= rp) status = 'Critical';
+                        else if (st > rp && st < safetyMin) status = 'Low';
+                        else if (st >= safetyMin && st <= safetyMax) status = 'Safety';
+                        else if (st > safetyMax) status = 'Over';
+                        
                         const statusClass = status === 'Critical' ? 'text-danger' : status === 'Low' ? 'text-warning' : status === 'Over' ? 'text-info' : 'text-success';
                         return `<tr>
                             <td><strong>${(m.partNumber || m.id || '').toString()}</strong></td>
@@ -1354,10 +1521,33 @@ function renderMaterialsTable(data) {
     const totalVal = withValue.reduce((s, m) => s + m.totalValue, 0);
     let cum = 0;
     const abc = {};
+    const abcDetails = {}; // Store detailed info for tooltips
     withValue.forEach(m => {
+        const itemPct = totalVal > 0 ? (m.totalValue / totalVal) * 100 : 0;
+        const prevCum = cum; // Cumulative BEFORE adding this item
         cum += m.totalValue;
-        const pct = totalVal > 0 ? (cum / totalVal) * 100 : 0;
-        abc[m.id] = pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C';
+        const cumulativePct = totalVal > 0 ? (cum / totalVal) * 100 : 0;
+        
+        // Classify based on where the cumulative was BEFORE adding this item
+        // This ensures high-value items that push us over 80% are still classified as A
+        let abcClass;
+        if (prevCum < 80) {
+            abcClass = 'A'; // Top 80% of value
+        } else if (prevCum < 95) {
+            abcClass = 'B'; // Next 15% (80-95%)
+        } else {
+            abcClass = 'C'; // Bottom 5% (95-100%)
+        }
+        
+        abc[m.id] = abcClass;
+        abcDetails[m.id] = {
+            stock: m.stock || 0,
+            price: m.price || 0,
+            totalValue: m.totalValue,
+            itemPct: itemPct,
+            cumulativePct: cumulativePct,
+            abcClass: abcClass
+        };
     });
     
     const html = `
@@ -1367,6 +1557,7 @@ function renderMaterialsTable(data) {
                     <th>Part Number</th>
                     <th>Description</th>
                     <th>Value Class</th>
+                    <th>Price</th>
                     <th>Project</th>
                     <th>Grouping</th>
                     <th>Stock</th>
@@ -1384,7 +1575,24 @@ function renderMaterialsTable(data) {
                     const valueClass = abc[m.id] || 'C';
                     const valueLabel = valueClass === 'A' ? 'High Value' : valueClass === 'B' ? 'Medium Value' : 'Low Value';
                     const valueColor = valueClass === 'A' ? '#2196f3' : valueClass === 'B' ? '#9c27b0' : '#4caf50';
-                    const totalValue = ((m.stock || 0) * (m.price || 0)).toLocaleString();
+                    const details = abcDetails[m.id] || {};
+                    const tooltipText = `ABC Classification: ${valueClass} (${valueLabel})
+
+INVENTORY VALUE (Stock × Price):
+Stock: ${(details.stock || 0).toLocaleString()} units × Price: ₱${(details.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+= Total Inventory Value: ₱${(details.totalValue || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+
+PERCENTAGE OF TOTAL INVENTORY:
+This item: ${(details.itemPct || 0).toFixed(2)}% of total inventory value
+Cumulative: ${(details.cumulativePct || 0).toFixed(2)}%
+
+WHY CLASS ${valueClass}?
+${valueClass === 'A' ? '✓ Top 80% of total inventory value\n✓ High priority for inventory control\n✓ Requires tight management' : valueClass === 'B' ? '• Next 15% of inventory value (80-95%)\n• Medium priority\n• Moderate control needed' : '• Bottom 5% of inventory value (95-100%)\n• Low priority\n• Basic control sufficient'}
+
+Note: ABC is based on TOTAL inventory value (Stock × Price),
+not just unit price. High-priced items with low stock may be Class C.
+
+To change: Adjust price or stock quantity in ERPNext`;
                     const materialId = (m.id || '').toString().replace(/'/g, "\\'");
                     
                     return `
@@ -1392,10 +1600,11 @@ function renderMaterialsTable(data) {
                             <td><strong>${m.partNumber || ''}</strong></td>
                             <td>${m.description || ''}</td>
                             <td>
-                                <span class="value-badge" style="background: ${valueColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600;" title="Total Value: ₱${totalValue}">
+                                <span class="value-badge" style="background: ${valueColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600; cursor: help; white-space: pre-line;" title="${tooltipText}">
                                     ${valueClass} - ${valueLabel}
                                 </span>
                             </td>
+                            <td>₱${(m.price || 0).toFixed(2)}</td>
                             <td>${m.project || ''}</td>
                             <td>${m.grouping || ''}</td>
                             <td>${(m.stock || 0).toLocaleString()}</td>

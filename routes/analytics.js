@@ -21,6 +21,7 @@ async function getAllMaterialsWithStock() {
         storageLocation: item.default_warehouse || 'General Storage',
         stock: totalStock,
         reorderPoint: item.min_order_qty || 10,
+        safetyStock: item.safety_stock || (item.min_order_qty || 10) * 2,
         unit: item.stock_uom || 'Nos',
         price: item.standard_rate || 0,
         lastUpdated: item.modified || new Date().toISOString()
@@ -34,11 +35,20 @@ async function getAllMaterialsWithStock() {
   return materialsWithStock.filter(m => m !== null);
 }
 
-// Stock classification: critical <= reorder, low = reorder < x <= 1.5*reorder, safety = >= 1.5*reorder, over = > 3*reorder
+// Stock classification with safety stock ranges
+// - Safety Stock: Between safetyStockMin (80% of safety stock) and safetyStockMax (safety stock value)
+// - Low Stock: Below safetyStockMin but above reorder point
+// - Critical Stock: At or below reorder point
+// - Over Stock: Above safety stock
 function classifyStock(m) {
+  const safetyStock = m.safetyStock || m.reorderPoint * 2; // Default safety stock is 2x reorder point
+  const safetyStockMin = safetyStock * 0.625; // 50% of safety stock (lower bound)
+  const safetyStockMax = safetyStock; // 80% equivalent (upper bound)
+  
   if (m.stock <= m.reorderPoint) return 'critical';
-  if (m.stock <= m.reorderPoint * 1.5) return 'low';
-  if (m.stock > m.reorderPoint * 3) return 'over';
+  if (m.stock > m.reorderPoint && m.stock < safetyStockMin) return 'low';
+  if (m.stock >= safetyStockMin && m.stock <= safetyStockMax) return 'safety';
+  if (m.stock > safetyStockMax) return 'over';
   return 'safety';
 }
 
@@ -49,11 +59,19 @@ router.get('/dashboard', async (req, res) => {
     
     const totalMaterials = materials.length;
     const totalValue = materials.reduce((sum, m) => sum + (m.stock * m.price), 0);
-    const criticalStock = materials.filter(m => m.stock <= m.reorderPoint);
-    const lowStock = materials.filter(m => m.stock > m.reorderPoint && m.stock <= m.reorderPoint * 1.5);
-    const overStock = materials.filter(m => m.stock > m.reorderPoint * 3);
-    const safetyStock = materials.filter(m => m.stock > m.reorderPoint * 1.5 && m.stock <= m.reorderPoint * 3);
-    const lowStockItems = criticalStock.length;
+    
+    // Classify each material
+    const classified = materials.map(m => ({
+      ...m,
+      classification: classifyStock(m)
+    }));
+    
+    const criticalStock = classified.filter(m => m.classification === 'critical');
+    const lowStock = classified.filter(m => m.classification === 'low');
+    const safetyStock = classified.filter(m => m.classification === 'safety');
+    const overStock = classified.filter(m => m.classification === 'over');
+    
+    const lowStockItems = criticalStock.length + lowStock.length;
     const groupings = [...new Set(materials.map(m => m.grouping))];
 
     const groupingBreakdown = groupings.map(grp => {
