@@ -868,21 +868,32 @@ router.post('/material-analysis', async (req, res) => {
 - **Description**: ${material.description}
 - **Project**: ${material.project} | **Category**: ${material.grouping}
 - **Current Stock**: ${material.stock} ${material.unit} | **Reorder Point**: ${material.reorderPoint} ${material.unit}
+- **Lead Time**: ${material.leadTime || 0} days
 - **Stock Level**: ${stockPercent}% | **Status**: ${status}
 - **Unit Price**: ₱${material.price}
+
+## LEAD TIME RISK ASSESSMENT:
+${material.leadTime > 0 ? `
+- **Delivery Time**: ${material.leadTime} days after ordering
+- **Stock Coverage**: ${material.stock > 0 ? Math.floor(material.stock / (material.reorderPoint * 0.1)) : 0} days at current consumption
+- **Risk Level**: ${material.stock / (material.reorderPoint * 0.1) < material.leadTime ? '🔴 HIGH RISK - Stock may run out before delivery' : '🟢 LOW RISK - Sufficient stock for lead time'}
+${material.stock <= material.reorderPoint && material.leadTime > 7 ? '⚠️ **URGENT**: Long lead time + low stock = ORDER IMMEDIATELY' : ''}
+` : '- Lead time not set in ERPNext'}
 
 ## YOUR TASK: Provide SHORT, SPECIFIC analysis in this format:
 
 ### 📊 Quick Status
-[1-2 sentences: Is this material healthy? What's the risk level?]
+[1-2 sentences: Is this material healthy? What's the risk level? Consider lead time in your assessment.]
 
 ### 🎯 Recommendation
 ${material.stock <= material.reorderPoint ? 
   `**ORDER NOW**: ${recommendedOrderQty} ${material.unit} (₱${orderCost})
 **Urgency**: ${material.stock < material.reorderPoint * 0.5 ? 'TODAY - Critical' : 'THIS WEEK - High Priority'}
-**Reason**: [Why order now? Impact on ${material.project} project]` :
+**Lead Time**: ${material.leadTime || 0} days - ${material.leadTime > 7 ? 'LONG LEAD TIME - Order immediately!' : 'Standard delivery'}
+**Reason**: [Why order now? Impact on ${material.project} project. Factor in ${material.leadTime || 0} day lead time]` :
   `**NO ORDER NEEDED**: Stock is healthy
 **Next Review**: ${daysUntilReorder} days
+**Lead Time Buffer**: ${material.leadTime > 0 ? `Maintain ${Math.ceil(material.leadTime * 1.5)} days of stock` : 'Set lead time in ERPNext'}
 **Monitor**: [What to watch for]`}
 
 ### 💰 Financial Impact
@@ -890,33 +901,48 @@ ${material.stock <= material.reorderPoint ?
 - ${material.stock <= material.reorderPoint ? `Order Cost: ₱${orderCost}` : `Reorder Value: ₱${reorderValue}`}
 - ${material.stock <= material.reorderPoint ? `Stockout Risk: ₱${(material.price * material.reorderPoint * 5).toFixed(2)}` : `Status: Healthy`}
 
+### ⏱️ Lead Time Analysis
+${material.leadTime > 0 ? `
+- **Delivery Time**: ${material.leadTime} days
+- **Days Until Stockout**: ${Math.max(1, Math.floor(material.stock / (material.reorderPoint * 0.1)))} days
+- **Risk**: ${material.stock / (material.reorderPoint * 0.1) < material.leadTime ? '🔴 Will run out before delivery arrives!' : '🟢 Sufficient stock during lead time'}
+- **Action**: ${material.stock / (material.reorderPoint * 0.1) < material.leadTime ? 'ORDER IMMEDIATELY or find faster supplier' : 'Order when stock reaches reorder point'}
+` : `
+- Lead time not configured in ERPNext
+- **Action**: Set lead time in Item Master for better planning
+`}
+
 ### ⚠️ Risks & Actions
 ${material.stock < material.reorderPoint * 0.5 ? 
-  `**CRITICAL RISK**: ${Math.max(1, Math.floor(material.stock / (material.reorderPoint * 0.1)))} days until stockout
+  `**CRITICAL RISK**: ${Math.max(1, Math.floor(material.stock / (material.reorderPoint * 0.1)))} days until stockout ${material.leadTime > 0 ? `(Lead time: ${material.leadTime} days)` : ''}
 **Actions**: 
 1. Create emergency PO today
-2. Contact supplier for expedited delivery
-3. Notify ${material.project} team` :
+2. ${material.leadTime > 7 ? 'Request expedited delivery - standard lead time too long' : 'Contact supplier for expedited delivery'}
+3. Notify ${material.project} team
+${material.leadTime > Math.floor(material.stock / (material.reorderPoint * 0.1)) ? '4. ⚠️ CRITICAL: Will stockout before delivery - find alternative supplier!' : ''}` :
   material.stock <= material.reorderPoint ?
-  `**MODERATE RISK**: Order this week
+  `**MODERATE RISK**: Order this week ${material.leadTime > 0 ? `(${material.leadTime} day lead time)` : ''}
 **Actions**:
 1. Create PO for ${recommendedOrderQty} ${material.unit}
-2. Expected delivery: 5-7 days` :
+2. Expected delivery: ${material.leadTime || 5-7} days
+${material.leadTime > 14 ? '3. ⚠️ Long lead time - consider increasing safety stock' : ''}` :
   `**LOW RISK**: Monitor weekly
 **Actions**:
 1. Review in ${Math.floor(daysUntilReorder / 7)} weeks
-2. Check consumption trends`}
+2. Check consumption trends
+3. ${material.leadTime > 0 ? `Reorder when stock reaches ${Math.ceil(material.reorderPoint + (material.leadTime * material.reorderPoint * 0.1))} units (reorder point + lead time buffer)` : 'Set lead time in ERPNext for better planning'}`}
 
 ### 🔄 Optimization
 - ${material.stock <= material.reorderPoint ? `Increase reorder point to ${Math.floor(material.reorderPoint * 1.3)} ${material.unit}` : `Current reorder point adequate`}
-- Safety stock: ${Math.floor(material.reorderPoint * 0.5)} ${material.unit}
+- Safety stock: ${Math.floor(material.reorderPoint * 0.5)} ${material.unit} ${material.leadTime > 7 ? `(Consider ${Math.floor(material.leadTime * material.reorderPoint * 0.15)} for long lead time)` : ''}
 - ${sameCategoryMaterials.length} other ${material.grouping} materials (avg: ${categoryAvgStock} units)
+${material.leadTime > 14 ? '- ⚠️ Long lead time detected - consider alternative suppliers or increase safety stock' : ''}
 
 ---
 
-**SUMMARY**: ${material.stock <= material.reorderPoint ? `⚠️ ORDER ${recommendedOrderQty} ${material.unit} (₱${orderCost}) - ${material.stock < material.reorderPoint * 0.5 ? 'TODAY' : 'THIS WEEK'}` : `✅ Healthy - Review in ${daysUntilReorder} days`}
+**SUMMARY**: ${material.stock <= material.reorderPoint ? `⚠️ ORDER ${recommendedOrderQty} ${material.unit} (₱${orderCost}) - ${material.stock < material.reorderPoint * 0.5 ? 'TODAY' : 'THIS WEEK'} ${material.leadTime > 0 ? `(${material.leadTime} day lead time)` : ''}` : `✅ Healthy - Review in ${daysUntilReorder} days`}
 
-Keep it SHORT and SPECIFIC!`;
+Keep it SHORT and SPECIFIC! Always consider lead time in your recommendations.`;
 
 
     const result = await model.generateContent(prompt);

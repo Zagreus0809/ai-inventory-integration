@@ -1587,12 +1587,11 @@ This item: ${(details.itemPct || 0).toFixed(2)}% of total inventory value
 Cumulative: ${(details.cumulativePct || 0).toFixed(2)}%
 
 WHY CLASS ${valueClass}?
-${valueClass === 'A' ? '✓ Top 80% of total inventory value\n✓ High priority for inventory control\n✓ Requires tight management' : valueClass === 'B' ? '• Next 15% of inventory value (80-95%)\n• Medium priority\n• Moderate control needed' : '• Bottom 5% of inventory value (95-100%)\n• Low priority\n• Basic control sufficient'}
+${valueClass === 'A' ? '✓ Top 80% of total inventory value\n✓ High priority for inventory control\n✓ Requires tight management\n\nThis item represents significant capital investment.' : valueClass === 'B' ? '• Next 15% of inventory value (80-95%)\n• Medium priority\n• Moderate control needed\n\nThis item has moderate financial impact.' : '• Bottom 5% of inventory value (95-100%)\n• Low priority\n• Basic control sufficient\n\n⚠️ NOTE: Even if unit price is high (₱${(details.price || 0).toLocaleString()}),\nif stock is low, total value is small compared to other items.\n\nExample: 2 units × ₱10M = ₱20M (1% of total)\nvs 1000 units × ₱2M = ₱2B (99% of total)\n\nThe second item is Class A because it ties up more capital.'}
 
-Note: ABC is based on TOTAL inventory value (Stock × Price),
-not just unit price. High-priced items with low stock may be Class C.
+ABC is about TOTAL VALUE (Stock × Price), not just unit price!
 
-To change: Adjust price or stock quantity in ERPNext`;
+To change: Adjust price OR stock quantity in ERPNext`;
                     const materialId = (m.id || '').toString().replace(/'/g, "\\'");
                     
                     return `
