@@ -1516,37 +1516,36 @@ function renderMaterialsTable(data) {
         return;
     }
     
-    // Calculate ABC classification for value indicators
-    const withValue = data.map(m => ({ ...m, totalValue: (m.stock || 0) * (m.price || 0) })).sort((a, b) => b.totalValue - a.totalValue);
-    const totalVal = withValue.reduce((s, m) => s + m.totalValue, 0);
-    let cum = 0;
+    // Calculate ABC classification based on UNIT PRICE (simpler approach)
+    // Low Value (C): < ₱100,000
+    // Medium Value (B): ₱100,000 - ₱999,999
+    // High Value (A): ≥ ₱1,000,000
     const abc = {};
-    const abcDetails = {}; // Store detailed info for tooltips
-    withValue.forEach(m => {
-        const itemPct = totalVal > 0 ? (m.totalValue / totalVal) * 100 : 0;
-        const prevCum = cum; // Cumulative BEFORE adding this item
-        cum += m.totalValue;
-        const cumulativePct = totalVal > 0 ? (cum / totalVal) * 100 : 0;
-        
-        // Classify based on where the cumulative was BEFORE adding this item
-        // This ensures high-value items that push us over 80% are still classified as A
+    const abcDetails = {};
+    
+    data.forEach(m => {
+        const price = m.price || 0;
         let abcClass;
-        if (prevCum < 80) {
-            abcClass = 'A'; // Top 80% of value
-        } else if (prevCum < 95) {
-            abcClass = 'B'; // Next 15% (80-95%)
+        let valueLabel;
+        
+        if (price >= 1000000) {
+            abcClass = 'A';
+            valueLabel = 'High Value';
+        } else if (price >= 100000) {
+            abcClass = 'B';
+            valueLabel = 'Medium Value';
         } else {
-            abcClass = 'C'; // Bottom 5% (95-100%)
+            abcClass = 'C';
+            valueLabel = 'Low Value';
         }
         
         abc[m.id] = abcClass;
         abcDetails[m.id] = {
             stock: m.stock || 0,
-            price: m.price || 0,
-            totalValue: m.totalValue,
-            itemPct: itemPct,
-            cumulativePct: cumulativePct,
-            abcClass: abcClass
+            price: price,
+            totalValue: (m.stock || 0) * price,
+            abcClass: abcClass,
+            priceRange: price >= 1000000 ? '≥ ₱1M' : price >= 100000 ? '₱100K - ₱999K' : '< ₱100K'
         };
     });
     
@@ -1578,20 +1577,18 @@ function renderMaterialsTable(data) {
                     const details = abcDetails[m.id] || {};
                     const tooltipText = `ABC Classification: ${valueClass} (${valueLabel})
 
-INVENTORY VALUE (Stock × Price):
-Stock: ${(details.stock || 0).toLocaleString()} units × Price: ₱${(details.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-= Total Inventory Value: ₱${(details.totalValue || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+BASED ON UNIT PRICE:
+Price: ₱${(details.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+Price Range: ${details.priceRange || 'N/A'}
 
-PERCENTAGE OF TOTAL INVENTORY:
-This item: ${(details.itemPct || 0).toFixed(2)}% of total inventory value
-Cumulative: ${(details.cumulativePct || 0).toFixed(2)}%
+CLASSIFICATION RULES:
+${valueClass === 'A' ? '✓ High Value (Class A): Price ≥ ₱1,000,000\n✓ Premium items requiring tight control\n✓ High financial impact per unit' : valueClass === 'B' ? '• Medium Value (Class B): Price ₱100,000 - ₱999,999\n• Moderate value items\n• Standard control procedures' : '• Low Value (Class C): Price < ₱100,000\n• Lower value items\n• Basic control sufficient'}
 
-WHY CLASS ${valueClass}?
-${valueClass === 'A' ? '✓ Top 80% of total inventory value\n✓ High priority for inventory control\n✓ Requires tight management\n\nThis item represents significant capital investment.' : valueClass === 'B' ? '• Next 15% of inventory value (80-95%)\n• Medium priority\n• Moderate control needed\n\nThis item has moderate financial impact.' : '• Bottom 5% of inventory value (95-100%)\n• Low priority\n• Basic control sufficient\n\n⚠️ NOTE: Even if unit price is high (₱${(details.price || 0).toLocaleString()}),\nif stock is low, total value is small compared to other items.\n\nExample: 2 units × ₱10M = ₱20M (1% of total)\nvs 1000 units × ₱2M = ₱2B (99% of total)\n\nThe second item is Class A because it ties up more capital.'}
+INVENTORY VALUE:
+Stock: ${(details.stock || 0).toLocaleString()} units
+Total Value: ₱${(details.totalValue || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
 
-ABC is about TOTAL VALUE (Stock × Price), not just unit price!
-
-To change: Adjust price OR stock quantity in ERPNext`;
+To change class: Adjust unit price in ERPNext`;
                     const materialId = (m.id || '').toString().replace(/'/g, "\\'");
                     
                     return `

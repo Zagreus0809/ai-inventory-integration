@@ -63,6 +63,30 @@ function runDemoWithMaterials(baseMats) {
             m.stock = Math.floor(rp * (1.5 + Math.random() * 1.0));
         }
         if (m.stock < 0) m.stock = 0;
+        
+        // Randomize lead time (0-30 days)
+        m.leadTime = Math.floor(Math.random() * 31);
+        
+        // Randomize price if not set or for variety
+        if (!m.price || Math.random() < 0.3) {
+            const priceRand = Math.random();
+            if (priceRand < 0.3) {
+                // Low value: ₱1 - ₱99,999
+                m.price = Math.floor(Math.random() * 99999) + 1;
+            } else if (priceRand < 0.6) {
+                // Medium value: ₱100,000 - ₱999,999
+                m.price = Math.floor(Math.random() * 900000) + 100000;
+            } else {
+                // High value: ₱1,000,000 - ₱20,000,000
+                m.price = Math.floor(Math.random() * 19000000) + 1000000;
+            }
+        }
+        
+        // Randomize reorder point
+        m.reorderPoint = Math.floor(Math.random() * 100) + 10;
+        
+        // Randomize safety stock
+        m.safetyStock = Math.floor(m.reorderPoint * (1.5 + Math.random()));
     }
     const demoMaterials = mats;
     const dashboard = buildDashboardFromMaterials(demoMaterials);
@@ -92,7 +116,7 @@ function runDemoWithMaterials(baseMats) {
     loadStockEntries();
     loadMaterialRequests();
     loadStockLedger();
-    console.log('[Demo] Demo mode is running. All functions use demo data.');
+    console.log('[Demo] Demo mode is running. All functions use demo data with randomized values.');
 }
 
 function buildDashboardFromMaterials(mats) {
