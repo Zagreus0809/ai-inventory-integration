@@ -377,15 +377,15 @@ function buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lo
   const healthySample = healthyItems.slice(0, Math.min(15, healthyItems.length));
 
   const criticalTable = criticalSample.map(item =>
-    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 40)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${(item.grouping || '').toString()} | ${(item.project || '').toString()} | ₱${(item.price || 0)} | ₱${((item.reorderPoint || 0) * 2 * (item.price || 0)).toFixed(2)} |`
+    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 40)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${item.leadTime || 0} days | ${(item.grouping || '').toString()} | ${(item.project || '').toString()} | ₱${(item.price || 0)} | ₱${((item.reorderPoint || 0) * 2 * (item.price || 0)).toFixed(2)} |`
   ).join('\n');
 
   const lowStockTable = lowStockSample.map(item =>
-    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 35)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${(item.project || '').toString()} | ${(item.grouping || '').toString()} | ₱${(((item.reorderPoint || 0) * 2 - (item.stock || 0)) * (item.price || 0)).toFixed(2)} |`
+    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 35)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${item.leadTime || 0} days | ${(item.project || '').toString()} | ${(item.grouping || '').toString()} | ₱${(((item.reorderPoint || 0) * 2 - (item.stock || 0)) * (item.price || 0)).toFixed(2)} |`
   ).join('\n');
 
   const healthyTable = healthySample.map(item =>
-    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 35)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${(item.project || '').toString()} | ${(item.grouping || '').toString()} |`
+    `| ${(item.partNumber || '').toString()} | ${(item.description || '').toString().substring(0, 35)} | ${item.stock} ${item.unit || ''} | ${item.reorderPoint} ${item.unit || ''} | ${item.leadTime || 0} days | ${(item.project || '').toString()} | ${(item.grouping || '').toString()} |`
   ).join('\n');
 
   const nivioMaterials = materials.filter(m => (m.project || '') === 'Nivio');
@@ -407,7 +407,7 @@ function buildComprehensiveDashboardPrompt(materials, summary, criticalItems, lo
 
 ${criticalItems.length > 0 ? `
 ## 🚨 CRITICAL ITEMS (sample of ${criticalItems.length} total):
-${criticalSample.map(item => `- **${(item.partNumber || '').toString()}** (${(item.description || '').toString().substring(0, 30)}): ${item.stock} ${item.unit || ''} → Order ${Math.max((item.reorderPoint || 0) * 2 - (item.stock || 0), 0)} ${item.unit || ''} = ₱${(Math.max((item.reorderPoint || 0) * 2 - (item.stock || 0), 0) * (item.price || 0)).toFixed(2)}`).join('\n')}
+${criticalSample.map(item => `- **${(item.partNumber || '').toString()}** (${(item.description || '').toString().substring(0, 30)}): ${item.stock} ${item.unit || ''} → Order ${Math.max((item.reorderPoint || 0) * 2 - (item.stock || 0), 0)} ${item.unit || ''} = ₱${(Math.max((item.reorderPoint || 0) * 2 - (item.stock || 0), 0) * (item.price || 0)).toFixed(2)} | Lead Time: ${item.leadTime || 0} days`).join('\n')}
 ${criticalItems.length > criticalSample.length ? `\n... and ${criticalItems.length - criticalSample.length} more critical items.\n` : ''}
 ` : ''}
 
@@ -416,36 +416,45 @@ ${criticalItems.length > criticalSample.length ? `\n... and ${criticalItems.leng
 - Migne: ${migneMaterials.length} materials (${migneLowStock.length} low stock)
 - Common: ${commonMaterials.length} materials (${commonLowStock.length} low stock)
 
+## 📦 LEAD TIME CONSIDERATIONS:
+When analyzing inventory, consider lead times for reordering:
+- Items with longer lead times need higher safety stock
+- Critical items with long lead times are HIGH RISK (may run out before restock arrives)
+- Factor lead time into reorder recommendations (order earlier for long lead times)
+
 ---
 
 Provide analysis in this format:
 
 ## 📊 Overall Inventory Summary
-[2-3 sentences about the current inventory status based on the ACTUAL ${totalCount} materials - what's good, what needs attention]
+[2-3 sentences about the current inventory status based on the ACTUAL ${totalCount} materials - what's good, what needs attention. Mention any lead time risks.]
 
 ## 🤖 AI Insights
-[Explain what the AI system detected - anomalies, patterns, predictions. Focus on: automated monitoring, intelligent alerts, predictive analytics, real-time tracking, efficiency gains from AI]
+[Explain what the AI system detected - anomalies, patterns, predictions. Focus on: automated monitoring, intelligent alerts, predictive analytics, real-time tracking, efficiency gains from AI. Include lead time-based risk analysis.]
 
 ## 📈 Stock Entry Summary
 [Brief overview of recent stock movements and trends]
 
 ## 📋 Material Request Summary  
-[Summary of pending requests and procurement needs]
+[Summary of pending requests and procurement needs. Consider lead times for urgent orders.]
 
 ## 📚 Stock Ledger Summary
 [Overview of transaction history and inventory accuracy]
 
+## ⏱️ Lead Time Analysis
+[Analyze items with long lead times that are at risk. Recommend which items need immediate ordering based on current stock + lead time. Identify items where lead time puts them at risk of stockout.]
+
 ## 🎯 Key Recommendations - AI System Improvements
 [Provide 4-5 recommendations on how AI can IMPROVE the SAP inventory system in the future. Focus on:
-- Advanced AI features that could be added (machine learning for demand forecasting, predictive maintenance, automated reordering)
-- Integration improvements (connecting more data sources, real-time supplier integration, IoT sensors)
-- Analytics enhancements (better dashboards, custom reports, trend analysis)
-- Automation opportunities (auto-generate purchase orders, smart alerts, workflow automation)
-- System optimization (faster processing, better algorithms, enhanced user experience)
+- Advanced AI features that could be added (machine learning for demand forecasting, predictive maintenance, automated reordering based on lead times)
+- Integration improvements (connecting more data sources, real-time supplier integration, IoT sensors, supplier lead time tracking)
+- Analytics enhancements (better dashboards, custom reports, trend analysis, lead time optimization)
+- Automation opportunities (auto-generate purchase orders considering lead times, smart alerts for long-lead-time items, workflow automation)
+- System optimization (faster processing, better algorithms, enhanced user experience, lead-time-aware reorder points)
 
 Each recommendation should explain HOW the AI improvement would benefit the inventory management.]
 
-IMPORTANT: Base all analysis on the ACTUAL ${totalCount} materials count, not any assumed number. Be accurate with the real data provided.`;
+IMPORTANT: Base all analysis on the ACTUAL ${totalCount} materials count, not any assumed number. Be accurate with the real data provided. Always consider lead times in your recommendations.`;
 }
 
 function generateComprehensiveMockAnalysis(materials, summary) {
